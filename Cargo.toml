@@ -1,0 +1,18 @@
+[package]
+name = "jrep"
+version = "0.1.0"
+edition = "2021"
+
+authors = ["Nicolas de Pineda Gutierrez <nicolasdepg@gmail.com>"]
+license = "MIT"
+description = "A tool to grep JSON"
+readme = "README.md"
+homepage = "https://github.com/ficolas2/jrep"
+repository = "https://github.com/ficolas2/jrep"
+keywords = ["cli", "commands", "grep", "command-line", "utilities"]
+categories = ["command-line-utilities"]
+
+[dependencies]
+clap = { version = "4.5.20", features = ["derive"] }
+serde = "1.0.218"
+serde_json = "1.0.140"
