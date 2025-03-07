@@ -20,6 +20,20 @@ fn match_internal(
     let mut result: Vec<Vec<PathNode>> = Vec::new();
 
     if head {
+        match json {
+            Value::Array(vec) => result.extend(vec.iter().enumerate().flat_map(|(index, item)| {
+                let mut next_path = path.clone();
+                next_path.push(PathNode::Index(Some(index)));
+
+                match_internal(item, matching_path, matching_value, next_path, true)
+            })),
+            Value::Object(map) => result.extend(map.iter().flat_map(|(k, v)| {
+                let mut next_path = path.clone();
+                next_path.push(PathNode::Key(k.to_string()));
+                match_internal(v, matching_path, matching_value, next_path, true)
+            })),
+            _ => {}
+        }
     }
 
     if matching_path.is_empty() {
@@ -104,5 +118,21 @@ pub mod tests {
         )
     }
 
-    // #[test]
+    #[test]
+    fn test_partial_path() {
+        let pattern = Pattern::parse(".b.c").unwrap();
+
+        let json = json!({ "a": { "b": { "c": 42 } } });
+
+        let result = match_pattern(&json, &pattern);
+
+        assert_eq!(
+            result,
+            vec![vec![
+                PathNode::Key("a".to_string()),
+                PathNode::Key("b".to_string()),
+                PathNode::Key("c".to_string())
+            ]]
+        )
+    }
 }
