@@ -2,10 +2,10 @@ use std::process::exit;
 
 use crate::{errors::parsing_error::ParsingError, path_node::PathNode, string_utils};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Pattern {
-    path: Vec<PathNode>,
-    value: Option<String>,
+    pub path: Vec<PathNode>,
+    pub value: Option<String>,
 }
 
 impl Pattern {
