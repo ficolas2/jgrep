@@ -48,7 +48,7 @@ We will use the following JSON for all the examples:
 ```
 
 ### Query language
-Jrep uses a very simple query language, based on the JSON path syntax, and admitting wildcards (*) for keys and values.
+Jrep uses a very simple query language, based on the JSON path syntax, and admitting wildcards (* and ?) for keys and values.
 ```bash
 jrep 'Jane' filename
 #> .items[1].meta.author.name: "Jane"
@@ -88,6 +88,8 @@ And you can use wildcards:
 ```bash
 jrep '.name: J*n*' filename
 #> .items[0].meta.author.name: "John"
+#> .items[1].meta.author.name: "Jane"
+jrep '.name: Jan?' filename
 #> .items[1].meta.author.name: "Jane"
 ```
 
