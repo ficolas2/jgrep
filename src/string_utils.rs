@@ -38,6 +38,10 @@ pub fn wildcard_match_internal(mut haystack: Chars, mut needle: Peekable<Chars>)
                 }
                 needle.next();
             }
+            Some('?') => {
+                needle.next();
+                haystack.next();
+            }
             Some(c) => {
                 if Some(*c) == haystack.next() {
                     needle.next();
@@ -94,9 +98,12 @@ mod test {
 
     #[test]
     fn test_wildcard_match() {
-        // Matches
+        // No wildcard
         assert!(wildcard_match("", "")); // Empty
         assert!(wildcard_match("abc", "abc")); // Exact
+        
+        // *
+        // Matches
         assert!(wildcard_match("abc", "a*c")); // Wildcard matches one
         assert!(wildcard_match("abc", "a*")); // Wildcard matches to the end
         assert!(wildcard_match("abc", "*c")); // Wildcard matches from the start
@@ -112,5 +119,11 @@ mod test {
         assert!(!wildcard_match("abc", "b*")); // Wildcard end
         assert!(!wildcard_match("abc", "*b")); // Wildcard start
         assert!(!wildcard_match("abc", "*d*")); // Multiple wildcards
+
+        // ?
+        assert!(wildcard_match("abc", "a?c")); // Single wildcard
+        assert!(wildcard_match("abc", "??c")); // Double wildcard
+        assert!(wildcard_match("abc", "?bc")); // Start
+        assert!(wildcard_match("abc", "ab?")); // End
     }
 }
