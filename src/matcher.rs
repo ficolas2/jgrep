@@ -37,14 +37,16 @@ fn match_internal(
     }
 
     if matching_path.is_empty() {
-        if let Some(_matching_value) = matching_value {
-            match json {
-                Value::Null => todo!(),
-                Value::Bool(_bool) => todo!(),
-                Value::Number(_number) => todo!(),
-                Value::String(_string) => todo!(),
-                _ => todo!(), // TODO also match objects and arrays?
-            };
+        if let Some(matching_value) = matching_value {
+            if match json {
+                Value::Null => wildcard_match("null", matching_value),
+                Value::Bool(b) => wildcard_match(&bool::to_string(b), matching_value),
+                Value::Number(n) => wildcard_match(n.as_str(), matching_value),
+                Value::String(s) => wildcard_match(s, matching_value),
+                _ => false, // TODO also match objects and arrays?
+            } {
+                result.push(path);
+            }
         } else {
             result.push(path);
         }
@@ -149,6 +151,71 @@ pub mod tests {
             vec![vec![
                 PathNode::Key("a".to_string()),
                 PathNode::Key("item".to_string()),
+                PathNode::Key("c".to_string())
+            ]]
+        )
+    }
+
+    #[test]
+    fn test_value_null() {
+        let pattern = Pattern::parse(": null").unwrap();
+
+        let json = json!({"a": "null"});
+
+        let result = match_pattern(&json, &pattern);
+
+        assert_eq!(result, vec![vec![PathNode::Key("a".to_string())]])
+    }
+
+    #[test]
+    fn test_value_bool() {
+        let true_pattern = Pattern::parse(": true").unwrap();
+        let false_pattern = Pattern::parse(": false").unwrap();
+
+        let json = json!({"a": true, "b": false});
+
+        let result = match_pattern(&json, &true_pattern);
+        assert_eq!(result, vec![vec![PathNode::Key("a".to_string())]]);
+
+        let result = match_pattern(&json, &false_pattern);
+        assert_eq!(result, vec![vec![PathNode::Key("b".to_string())]]);
+    }
+
+    #[test]
+    fn test_value_number() {
+        let pattern = Pattern::parse(": 42").unwrap();
+
+        let json = json!({"a": 42});
+
+        let result = match_pattern(&json, &pattern);
+
+        assert_eq!(result, vec![vec![PathNode::Key("a".to_string())]])
+    }
+
+    #[test]
+    fn test_value_string() {
+        let pattern = Pattern::parse(": hello").unwrap();
+
+        let json = json!({"a": "hello"});
+
+        let result = match_pattern(&json, &pattern);
+
+        assert_eq!(result, vec![vec![PathNode::Key("a".to_string())]])
+    }
+
+    #[test]
+    fn test_value_and_path() {
+        let pattern = Pattern::parse(".a.b.c: 42").unwrap();
+
+        let json = json!({ "a": { "b": { "c": 42 } } });
+
+        let result = match_pattern(&json, &pattern);
+
+        assert_eq!(
+            result,
+            vec![vec![
+                PathNode::Key("a".to_string()),
+                PathNode::Key("b".to_string()),
                 PathNode::Key("c".to_string())
             ]]
         )
