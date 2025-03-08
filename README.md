@@ -1,4 +1,12 @@
+# Jrep
+
 A mix between grep and jq
+
+Look for partial text, and wildcard matches in JSON files.
+
+Because jq forces you to know the entire path, and grep makes the match lose its JSON context.
+
+![Image](image.png)
 
 ---
 
