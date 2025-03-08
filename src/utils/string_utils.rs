@@ -1,4 +1,3 @@
-use std::io::{self, Write};
 use std::{iter::Peekable, str::Chars};
 
 /// Find all occurrences of a character outside of quotes in a string.
@@ -64,7 +63,7 @@ pub fn wildcard_match(haystack: &str, needle: &str) -> bool {
 
 #[cfg(test)]
 mod test {
-    use crate::string_utils::wildcard_match;
+    use crate::utils::string_utils::wildcard_match;
 
     #[test]
     fn test_find_all_outside_quotes() {

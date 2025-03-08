@@ -7,11 +7,15 @@ use pattern::Pattern;
 mod args;
 mod matcher;
 mod pattern;
-mod string_utils;
 mod path_node;
+
+pub mod utils {
+    pub mod string_utils;
+}
 
 pub mod printers {
     pub mod path_printer;
+    pub mod json_printer;
 }
 
 pub mod errors {

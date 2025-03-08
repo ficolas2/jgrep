@@ -1,6 +1,6 @@
 use serde_json::Value;
 
-use crate::{path_node::PathNode, pattern::Pattern, string_utils::wildcard_match};
+use crate::{path_node::PathNode, pattern::Pattern, utils::string_utils::wildcard_match};
 
 // The strategy for matching is the following recursive BFS:
 // - Recursively match the paths. If the path is empty, they all will be matches.

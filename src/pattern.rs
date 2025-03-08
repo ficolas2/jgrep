@@ -1,6 +1,6 @@
 use std::process::exit;
 
-use crate::{errors::parsing_error::ParsingError, path_node::PathNode, string_utils};
+use crate::{errors::parsing_error::ParsingError, path_node::PathNode, utils::string_utils};
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Pattern {
