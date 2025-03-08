@@ -135,4 +135,22 @@ pub mod tests {
             ]]
         )
     }
+
+    #[test]
+    fn test_wildcard_path() {
+        let pattern = Pattern::parse(".i*m.c").unwrap();
+
+        let json = json!({ "a": { "item": { "c": 42 } } });
+
+        let result = match_pattern(&json, &pattern);
+
+        assert_eq!(
+            result,
+            vec![vec![
+                PathNode::Key("a".to_string()),
+                PathNode::Key("item".to_string()),
+                PathNode::Key("c".to_string())
+            ]]
+        )
+    }
 }
