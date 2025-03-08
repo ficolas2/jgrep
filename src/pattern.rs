@@ -6,6 +6,7 @@ use crate::{errors::parsing_error::ParsingError, path_node::PathNode, string_uti
 pub struct Pattern {
     pub path: Vec<PathNode>,
     pub value: Option<String>,
+    pub or: bool,
 }
 
 impl Pattern {
@@ -115,14 +116,16 @@ impl Pattern {
     pub fn parse(pattern_str: &str) -> Result<Pattern, ParsingError> {
         let colons = string_utils::find_all_outside_quotes(pattern_str, ':');
 
-        let (path, value) = match colons.as_slice() {
-            [] => (
-                Self::parse_path(pattern_str)?,
-                Self::parse_value(pattern_str)?,
-            ),
+        let (path, value, or) = match colons.as_slice() {
+            [] => {
+                let value = Self::parse_value(pattern_str)?;
+                let or = value.is_some();
+                (Self::parse_path(pattern_str)?, value, or)
+            }
             [i] => (
                 Self::parse_path(&pattern_str[..*i])?,
                 Self::parse_value(&pattern_str[i + 1..])?,
+                false,
             ),
             [..] => {
                 return Err(ParsingError::new(
@@ -131,7 +134,7 @@ impl Pattern {
             }
         };
 
-        Ok(Pattern { path, value })
+        Ok(Pattern { path, value, or })
     }
 }
 
@@ -153,6 +156,7 @@ mod test {
                     PathNode::Key("c".to_string()),
                 ],
                 value: None,
+                or: false,
             },
             pattern
         );
@@ -166,6 +170,7 @@ mod test {
             Pattern {
                 path: vec![],
                 value: Some("true".to_string()),
+                or: false,
             },
             pattern
         );
@@ -183,6 +188,7 @@ mod test {
                     PathNode::Key("c".to_string()),
                 ],
                 value: Some("true".to_string()),
+                or: false,
             },
             pattern
         );
@@ -196,6 +202,7 @@ mod test {
             Pattern {
                 path: vec![PathNode::Key("a".to_string()),],
                 value: None,
+                or: false,
             },
             pattern
         );
@@ -213,6 +220,7 @@ mod test {
                     PathNode::Key("potato".to_string())
                 ],
                 value: None,
+                or: false,
             },
             pattern
         );

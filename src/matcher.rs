@@ -91,7 +91,16 @@ fn match_internal(
 }
 
 pub fn match_pattern(json: &Value, pattern: &Pattern) -> Vec<Vec<PathNode>> {
-    let mut matches = match_internal(json, &pattern.path, &pattern.value, vec![], true);
+    // TODO integrate or with the matching code? Not really necessary I don't think
+    let mut matches = if pattern.or { 
+        let mut path_matches = match_internal(json, &pattern.path, &None, vec![], true);
+        let mut value_matches = match_internal(json, &[], &pattern.value, vec![], true);
+
+        path_matches.append(&mut value_matches);
+        path_matches
+    } else {
+        match_internal(json, &pattern.path, &pattern.value, vec![], true)
+    };
     matches.dedup();
     matches
 }
