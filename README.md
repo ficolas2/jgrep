@@ -78,7 +78,7 @@ jrep '.rating: 4.7' filename
 
 And you can use wildcards:
 ```bash
-jrep '.name: J*e' filename
+jrep '.name: J*n*' filename
 #> .items[0].meta.author.name: "John"
 #> .items[1].meta.author.name: "Jane"
 ```
@@ -89,9 +89,11 @@ jrep '.rating: 4.*' filename
 #> .items[0].meta.rating: 4.7
 ```
 
+## Future features:
 ### Flags
 #### Displaying JSON instead of the path
 If you want to see the whole matched json, not just the path to the matched part, use the ``--json`` (``-j``) flag.
+The path to the current match will be displayed in a different color, if the terminal supports it.
 ```bash
 jrep '.rating' filename -j
 #> {
@@ -112,6 +114,7 @@ jrep '.rating' filename -j
 
 #### Context
 Like for grep, ``--context`` (``-C``) displays information around the match. In jrep, each context prints one previous level of the JSON object.
+The path to the current match will be displayed in a different color, if the terminal supports it.
 ```bash
 jrep 'Jane' filename -C 1
 #> .items[1].meta.author: {
@@ -119,6 +122,7 @@ jrep 'Jane' filename -C 1
 #>   "verified": true 
 #> }
 ```
+
 #### Ignore case
 You can use the ``--ignore-case`` (``-i``) flag to ignore the case of the query.
 ```bash
