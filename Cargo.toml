@@ -21,4 +21,5 @@ serde = "1.0.218"
 serde_json = { version = "1.0.140", features = ["arbitrary_precision", "preserve_order"] }
 
 [dev-dependencies]
+assert_cmd = "2.0.16"
 indoc = "2.0.6"
