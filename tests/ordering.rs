@@ -31,7 +31,7 @@ fn value_and_key_order_preservation() {
     }
     "#);
 
-    let mut cmd = Command::cargo_bin("jrep").unwrap();
+    let mut cmd = Command::cargo_bin("jgrep").unwrap();
     cmd.arg("name");
     cmd.arg("-j");
     cmd.write_stdin(json_constants::OR_MATCH);

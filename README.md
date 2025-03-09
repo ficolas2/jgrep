@@ -1,4 +1,4 @@
-# Jrep
+# Jgrep
 
 A mix between grep and jq
 
@@ -48,9 +48,9 @@ We will use the following JSON for all the examples:
 ```
 
 ### Query language
-Jrep uses a very simple query language, based on the JSON path syntax, and admitting wildcards (* and ?) for keys and values.
+Jgrep uses a very simple query language, based on the JSON path syntax, and admitting wildcards (* and ?) for keys and values.
 ```bash
-jrep 'Jane' filename
+jgrep 'Jane' filename
 #> .items[1].meta.author.name: "Jane"
 ```
 
@@ -58,9 +58,9 @@ Will look for all the occurrences of 'Jane', in keys or values, and it will retu
 
 You can also look for keys only, by putting the keys before a colon (:), or starting it with a dot (.):
 ```bash
-jrep 'author:' filename
+jgrep 'author:' filename
 # or
-jrep '.meta.author' filename
+jgrep '.meta.author' filename
 #> .items[0].meta.author: { 
 #>   "name": "John", 
 #>   "verified": false 
@@ -73,29 +73,29 @@ jrep '.meta.author' filename
 
 Or for values only, by putting the value after a colon:
 ```bash
-jrep ': true' filename
+jgrep ': true' filename
 #> .items[0].active: true
 #> .items[1].meta.author.verified: true
 ```
 
 Or for values and keys, having the key before a colon and the value after it:
 ```bash
-jrep '.rating: 4.7' filename
+jgrep '.rating: 4.7' filename
 #> .items[0].meta.rating: 4.7
 ```
 
 And you can use wildcards:
 ```bash
-jrep '.name: J*n*' filename
+jgrep '.name: J*n*' filename
 #> .items[0].meta.author.name: "John"
 #> .items[1].meta.author.name: "Jane"
-jrep '.name: Jan?' filename
+jgrep '.name: Jan?' filename
 #> .items[1].meta.author.name: "Jane"
 ```
 
 Wildcards work with numbers too:
 ```bash
-jrep '.rating: 4.*' filename
+jgrep '.rating: 4.*' filename
 #> .items[0].meta.rating: 4.7
 ```
 
@@ -105,7 +105,7 @@ jrep '.rating: 4.*' filename
 If you want to see the whole matched json, not just the path to the matched part, use the ``--json`` (``-j``) flag.
 The path to the current match will be displayed in a different color, if the terminal supports it.
 ```bash
-jrep '.rating' filename -j
+jgrep '.rating' filename -j
 #> {
 #>   "items": [
 #>     {
@@ -123,10 +123,10 @@ jrep '.rating' filename -j
 ```
 
 #### Context
-Like for grep, ``--context`` (``-C``) displays information around the match. In jrep, each context prints one previous level of the JSON object.
+Like for grep, ``--context`` (``-C``) displays information around the match. In jgrep, each context prints one previous level of the JSON object.
 The path to the current match will be displayed in a different color, if the terminal supports it.
 ```bash
-jrep 'Jane' filename -C 1
+jgrep 'Jane' filename -C 1
 #> .items[1].meta.author: {
 #>   "name": "Jane", 
 #>   "verified": true 
@@ -136,6 +136,6 @@ jrep 'Jane' filename -C 1
 #### Ignore case
 You can use the ``--ignore-case`` (``-i``) flag to ignore the case of the query.
 ```bash
-jrep 'jane' filename -i
+jgrep 'jane' filename -i
 #> .items[1].meta.author.name: "Jane"
 ```

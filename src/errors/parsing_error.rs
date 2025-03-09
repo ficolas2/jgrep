@@ -14,7 +14,7 @@ impl ParsingError {
 
 impl std::fmt::Display for ParsingError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "jrep: Error parsing patern: {}", self.message)
+        write!(f, "jgrep: Error parsing patern: {}", self.message)
     }
 }
 
