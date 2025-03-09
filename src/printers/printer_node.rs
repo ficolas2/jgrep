@@ -1,5 +1,4 @@
-use std::collections::HashMap;
-
+use indexmap::IndexMap;
 use serde_json::Value;
 
 use crate::matcher::match_node::MatchNode;
@@ -7,11 +6,11 @@ use crate::matcher::match_node::MatchNode;
 #[derive(Debug)]
 pub enum PrinterNode {
         Array {
-        vec: HashMap<usize, PrinterNode>,
+        vec: IndexMap<usize, PrinterNode>,
         highlighted: bool,
     },
         Object {
-        map: HashMap<String, PrinterNode>,
+        map: IndexMap<String, PrinterNode>,
         highlighted: bool,
     },
         Value {
@@ -24,11 +23,11 @@ impl PrinterNode {
     pub fn new_printed_node_for(value: &Value) -> PrinterNode {
         match value {
             Value::Array(_) => PrinterNode::Array {
-                vec: HashMap::new(),
+                vec: IndexMap::new(),
                 highlighted: false,
             },
             Value::Object(_) => PrinterNode::Object {
-                map: HashMap::new(),
+                map: IndexMap::new(),
                 highlighted: false,
             },
             Value::String(s) => PrinterNode::Value {

@@ -146,7 +146,6 @@ mod tests {
     use crate::{matcher::match_node::MatchNode, printers::json_printer};
 
     #[test]
-    // TODO FIXME this test fails 50% of the times, because order is not preserved
     fn test_simple() {
         let json = json!({
             "a": {
@@ -164,12 +163,12 @@ mod tests {
         vec![
             MatchNode::new_key("a".to_string(), false),
             MatchNode::new_key("w".to_string(), false),
-            MatchNode::new_key("i".to_string(), false),
+            MatchNode::new_key("a".to_string(), false),
         ],
         vec![
             MatchNode::new_key("a".to_string(), false),
             MatchNode::new_key("w".to_string(), false),
-            MatchNode::new_key("a".to_string(), false),
+            MatchNode::new_key("i".to_string(), false),
         ],
         ];
 
