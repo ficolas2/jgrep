@@ -26,81 +26,90 @@ fn match_value(json: &Value, matching_value: &str) -> bool {
 // - When the path is fully matched (an empty path or None), then the values can also start being
 //   matched
 // - When a match is found, it is returned in the result.
+//
+// IMPORTANT: match order needs to be preserved. Some of the weird dessign decisions taken in this
+// function are for that reason. If you plan on refactoring, or modifying keep that in mind.
 fn match_internal(
     json: &Value,
     matching_path: &[PatternNode],
-    matching_value: Option<&String>,
+    matching_val: Option<&String>,
     path: Vec<MatchNode>,
     or: bool,
     head: bool,
 ) -> Vec<Vec<MatchNode>> {
     let mut result: Vec<Vec<MatchNode>> = Vec::new();
 
-    if head {
-        match json {
-            Value::Array(vec) => result.extend(vec.iter().enumerate().flat_map(|(index, item)| {
-                let mut next_path = path.clone();
-                next_path.push(MatchNode::new_index(index, false));
-
-                match_internal(item, matching_path, matching_value, next_path, or, true)
-            })),
-            Value::Object(map) => result.extend(map.iter().flat_map(|(k, v)| {
-                let mut next_path = path.clone();
-                next_path.push(MatchNode::new_key(k.to_string(), false));
-                match_internal(v, matching_path, matching_value, next_path, or, true)
-            })),
-            _ => {
-                if or
-                    && matching_value
-                        .map(|m| match_value(json, m))
-                        .unwrap_or(false)
-                {
-                    result.push(path.clone());
-                }
-            }
-        }
-    }
-
     if matching_path.is_empty() {
-        if or || matching_value.map(|m| match_value(json, m)).unwrap_or(true) {
-            result.push(path);
+        if or || matching_val.map(|m| match_value(json, m)).unwrap_or(true) {
+            result.push(path.clone());
+        }
+        if head {
+            match json {
+                Value::Array(vec) => {
+                    result.extend(vec.iter().enumerate().flat_map(|(index, item)| {
+                        let mut next_path = path.clone();
+                        next_path.push(MatchNode::new_index(index, false));
+
+                        match_internal(item, matching_path, matching_val, next_path, or, true)
+                    }))
+                }
+                Value::Object(map) => result.extend(map.iter().flat_map(|(k, v)| {
+                    let mut next_path = path.clone();
+                    next_path.push(MatchNode::new_key(k.to_string(), false));
+                    match_internal(v, matching_path, matching_val, next_path, or, true)
+                })),
+                _ => {}
+            }
         }
     } else {
         let current_node = &matching_path[0];
         let next_nodes = &matching_path[1..];
-        match (json, current_node) {
-            (Value::Array(json_array), PatternNode::Index(index)) => {
-                if let Some(index) = index {
-                    if let Some(item) = json_array.get(*index) {
-                        let mut next_path = path.clone();
-                        next_path.push(MatchNode::new_index(*index, true));
-                        result.extend(match_internal(
-                            item,
-                            next_nodes,
-                            matching_value,
-                            next_path,
-                            or,
-                            false,
-                        ));
+        match json {
+            Value::Array(json_array) => {
+                for (i, v) in json_array.iter().enumerate() {
+                    if let PatternNode::Index(index) = current_node {
+                        if Some(i) == *index || index.is_none() {
+                            let mut next_path = path.clone();
+                            next_path.push(MatchNode::new_index(i, true));
+                            let matches =
+                                match_internal(v, next_nodes, matching_val, next_path, or, false);
+                            result.extend(matches);
+                        }
                     }
-                } else {
-                    result.extend(json_array.iter().enumerate().flat_map(|(i, item)| {
+                    if head {
                         let mut next_path = path.clone();
-                        next_path.push(MatchNode::new_index(i, true));
-                        match_internal(item, next_nodes, matching_value, next_path, or, false)
-                    }));
+                        next_path.push(MatchNode::new_index(i, false));
+                        let head_matches =
+                            match_internal(v, matching_path, matching_val, next_path, or, true);
+                        result.extend(head_matches);
+                    }
                 }
             }
-            (Value::Object(map), PatternNode::Key(matching_key)) => result.extend(
-                map.iter()
-                    .filter(|(k, _)| wildcard_match(k, matching_key))
-                    .flat_map(|(k, v)| {
+            Value::Object(map) => {
+                for (k, v) in map.iter() {
+                    if let PatternNode::Key(matching_key) = current_node {
+                        if wildcard_match(k, matching_key) {
+                            let mut next_path = path.clone();
+                            next_path.push(MatchNode::new_key(k.to_string(), true));
+                            let matches =
+                                match_internal(v, next_nodes, matching_val, next_path, or, false);
+                            result.extend(matches);
+                        }
+                    }
+                    if head {
                         let mut next_path = path.clone();
-                        next_path.push(MatchNode::new_key(k.to_string(), true));
-                        match_internal(v, next_nodes, matching_value, next_path, or, false)
-                    }),
-            ),
-            (_, _) => {}
+                        next_path.push(MatchNode::new_key(k.to_string(), false));
+                        let head_matches =
+                            match_internal(v, matching_path, matching_val, next_path, or, true);
+                        result.extend(head_matches);
+                    }
+                }
+            }
+            _ => {
+                if or && matching_val.map(|m| match_value(json, m)).unwrap_or(false) {
+                    result.push(path.clone());
+                }
+            }
         }
     }
     result
