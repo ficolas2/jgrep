@@ -1,9 +1,22 @@
 use match_node::MatchNode;
 use serde_json::Value;
 
-use crate::{pattern::{pattern_node::PatternNode, Pattern}, utils::string_utils::wildcard_match};
+use crate::{
+    pattern::{pattern_node::PatternNode, Pattern},
+    utils::string_utils::wildcard_match,
+};
 
 pub mod match_node;
+
+fn match_value(json: &Value, matching_value: &str) -> bool {
+    match json {
+        Value::Null => wildcard_match("null", matching_value),
+        Value::Bool(b) => wildcard_match(&bool::to_string(b), matching_value),
+        Value::Number(n) => wildcard_match(n.as_str(), matching_value),
+        Value::String(s) => wildcard_match(s, matching_value),
+        _ => false, // TODO also match objects and arrays?
+    }
+}
 
 // The strategy for matching is the following recursive BFS:
 // - Recursively match the paths. If the path is empty, they all will be matches.
@@ -16,8 +29,9 @@ pub mod match_node;
 fn match_internal(
     json: &Value,
     matching_path: &[PatternNode],
-    matching_value: &Option<String>,
+    matching_value: Option<&String>,
     path: Vec<MatchNode>,
+    or: bool,
     head: bool,
 ) -> Vec<Vec<MatchNode>> {
     let mut result: Vec<Vec<MatchNode>> = Vec::new();
@@ -28,29 +42,27 @@ fn match_internal(
                 let mut next_path = path.clone();
                 next_path.push(MatchNode::new_index(index, false));
 
-                match_internal(item, matching_path, matching_value, next_path, true)
+                match_internal(item, matching_path, matching_value, next_path, or, true)
             })),
             Value::Object(map) => result.extend(map.iter().flat_map(|(k, v)| {
                 let mut next_path = path.clone();
                 next_path.push(MatchNode::new_key(k.to_string(), false));
-                match_internal(v, matching_path, matching_value, next_path, true)
+                match_internal(v, matching_path, matching_value, next_path, or, true)
             })),
-            _ => {}
+            _ => {
+                if or
+                    && matching_value
+                        .map(|m| match_value(json, m))
+                        .unwrap_or(false)
+                {
+                    result.push(path.clone());
+                }
+            }
         }
     }
 
     if matching_path.is_empty() {
-        if let Some(matching_value) = matching_value {
-            if match json {
-                Value::Null => wildcard_match("null", matching_value),
-                Value::Bool(b) => wildcard_match(&bool::to_string(b), matching_value),
-                Value::Number(n) => wildcard_match(n.as_str(), matching_value),
-                Value::String(s) => wildcard_match(s, matching_value),
-                _ => false, // TODO also match objects and arrays?
-            } {
-                result.push(path);
-            }
-        } else {
+        if or || matching_value.map(|m| match_value(json, m)).unwrap_or(true) {
             result.push(path);
         }
     } else {
@@ -67,6 +79,7 @@ fn match_internal(
                             next_nodes,
                             matching_value,
                             next_path,
+                            or,
                             false,
                         ));
                     }
@@ -74,7 +87,7 @@ fn match_internal(
                     result.extend(json_array.iter().enumerate().flat_map(|(i, item)| {
                         let mut next_path = path.clone();
                         next_path.push(MatchNode::new_index(i, true));
-                        match_internal(item, next_nodes, matching_value, next_path, false)
+                        match_internal(item, next_nodes, matching_value, next_path, or, false)
                     }));
                 }
             }
@@ -84,7 +97,7 @@ fn match_internal(
                     .flat_map(|(k, v)| {
                         let mut next_path = path.clone();
                         next_path.push(MatchNode::new_key(k.to_string(), true));
-                        match_internal(v, next_nodes, matching_value, next_path, false)
+                        match_internal(v, next_nodes, matching_value, next_path, or, false)
                     }),
             ),
             (_, _) => {}
@@ -94,16 +107,14 @@ fn match_internal(
 }
 
 pub fn match_pattern(json: &Value, pattern: &Pattern) -> Vec<Vec<MatchNode>> {
-    // TODO integrate or with the matching code? Not really necessary I don't think
-    let mut matches = if pattern.or { 
-        let mut path_matches = match_internal(json, &pattern.path, &None, vec![], true);
-        let mut value_matches = match_internal(json, &[], &pattern.value, vec![], true);
-
-        path_matches.append(&mut value_matches);
-        path_matches
-    } else {
-        match_internal(json, &pattern.path, &pattern.value, vec![], true)
-    };
+    let mut matches = match_internal(
+        json,
+        &pattern.path,
+        pattern.value.as_ref(),
+        vec![],
+        pattern.or,
+        true,
+    );
     matches.dedup();
     matches
 }
@@ -112,7 +123,10 @@ pub fn match_pattern(json: &Value, pattern: &Pattern) -> Vec<Vec<MatchNode>> {
 pub mod tests {
     use serde_json::json;
 
-    use crate::{matcher::{match_pattern, MatchNode}, pattern::Pattern};
+    use crate::{
+        matcher::{match_pattern, MatchNode},
+        pattern::Pattern,
+    };
 
     #[test]
     fn test_complete_path() {
@@ -176,7 +190,10 @@ pub mod tests {
 
         let result = match_pattern(&json, &pattern);
 
-        assert_eq!(result, vec![vec![MatchNode::new_key("a".to_string(), false)]])
+        assert_eq!(
+            result,
+            vec![vec![MatchNode::new_key("a".to_string(), false)]]
+        )
     }
 
     #[test]
@@ -187,10 +204,16 @@ pub mod tests {
         let json = json!({"a": true, "b": false});
 
         let result = match_pattern(&json, &true_pattern);
-        assert_eq!(result, vec![vec![MatchNode::new_key("a".to_string(), false)]]);
+        assert_eq!(
+            result,
+            vec![vec![MatchNode::new_key("a".to_string(), false)]]
+        );
 
         let result = match_pattern(&json, &false_pattern);
-        assert_eq!(result, vec![vec![MatchNode::new_key("b".to_string(), false)]]);
+        assert_eq!(
+            result,
+            vec![vec![MatchNode::new_key("b".to_string(), false)]]
+        );
     }
 
     #[test]
@@ -201,7 +224,10 @@ pub mod tests {
 
         let result = match_pattern(&json, &pattern);
 
-        assert_eq!(result, vec![vec![MatchNode::new_key("a".to_string(), false)]])
+        assert_eq!(
+            result,
+            vec![vec![MatchNode::new_key("a".to_string(), false)]]
+        )
     }
 
     #[test]
@@ -212,9 +238,12 @@ pub mod tests {
 
         let result = match_pattern(&json, &pattern);
 
-        assert_eq!(result, vec![vec![MatchNode::new_key("a".to_string(), false)]])
+        assert_eq!(
+            result,
+            vec![vec![MatchNode::new_key("a".to_string(), false)]]
+        )
     }
- 
+
     #[test]
     fn test_value_and_path() {
         let pattern = Pattern::parse(".a.b.c: 42").unwrap();
