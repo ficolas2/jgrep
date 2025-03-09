@@ -6,19 +6,28 @@ Look for partial text, and wildcard matches in JSON files.
 
 Because jq forces you to know the entire path, and grep makes the match lose its JSON context.
 
-![Image](image.png)
-
----
-
 ⚠️ The query language is experimental, and bound to change. ⚠️
 
 If you want to make suggestions, discussion is welcomed in the issues
 
+
+- [Installation](#Installation)
 - [Usage](#Usage)
   - [Query language](#Query-language)
   - [Flags](#Flags)
     - [Displaying JSON instead of the path](#Displaying-JSON-instead-of-the-path)
     - [Context](#Context)
+
+![Image](image.png)
+
+## Installation
+You need cargo to install jgrep. If you don't have it, you can install it with rustup
+
+To install jgrep, just run
+```bash
+cargo install jgrep
+```
+
 
 ## Usage
 We will use the following JSON for all the examples:
@@ -99,7 +108,6 @@ jgrep '.rating: 4.*' filename
 #> .items[0].meta.rating: 4.7
 ```
 
-## Future features:
 ### Flags
 #### Displaying JSON instead of the path
 If you want to see the whole matched json, not just the path to the matched part, use the ``--json`` (``-j``) flag.
@@ -133,9 +141,9 @@ jgrep 'Jane' filename -C 1
 #> }
 ```
 
-#### Ignore case
-You can use the ``--ignore-case`` (``-i``) flag to ignore the case of the query.
-```bash
-jgrep 'jane' filename -i
-#> .items[1].meta.author.name: "Jane"
-```
+<!-- #### Ignore case -->
+<!-- You can use the ``--ignore-case`` (``-i``) flag to ignore the case of the query. -->
+<!-- ```bash -->
+<!-- jgrep 'jane' filename -i -->
+<!-- #> .items[1].meta.author.name: "Jane" -->
+<!-- ``` -->
