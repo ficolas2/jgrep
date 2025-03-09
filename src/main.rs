@@ -7,7 +7,6 @@ use pattern::Pattern;
 mod args;
 mod matcher;
 mod pattern;
-mod path_node;
 
 pub mod utils {
     pub mod string_utils;

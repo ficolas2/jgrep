@@ -1,25 +1,29 @@
 use std::process::exit;
 
-use crate::{errors::parsing_error::ParsingError, path_node::PathNode, utils::string_utils};
+use pattern_node::PatternNode;
+
+use crate::{errors::parsing_error::ParsingError, utils::string_utils};
+
+pub mod pattern_node;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Pattern {
-    pub path: Vec<PathNode>,
+    pub path: Vec<PatternNode>,
     pub value: Option<String>,
     pub or: bool,
 }
 
 impl Pattern {
-    fn extract_quoted(path_node_str: &str) -> PathNode {
+    fn extract_quoted(path_node_str: &str) -> PatternNode {
         let end_char = path_node_str.chars().last().unwrap();
         if end_char != '"' {
             eprintln!("Invalid pattern: Unmatched quotes");
             exit(1);
         }
-        PathNode::Key(path_node_str[1..path_node_str.len() - 1].to_string())
+        PatternNode::Key(path_node_str[1..path_node_str.len() - 1].to_string())
     }
 
-    fn extract_brackets(path_node_str: &str) -> PathNode {
+    fn extract_brackets(path_node_str: &str) -> PatternNode {
         let end_char = path_node_str.chars().last().unwrap();
         if end_char != ']' {
             eprintln!("Invalid pattern: Unmatched brackets");
@@ -30,17 +34,17 @@ impl Pattern {
             Self::extract_quoted(&path_node_str[1..path_node_str.len() - 1])
         } else {
             if path_node_str.len() == 2 {
-                return PathNode::Index(None);
+                return PatternNode::Index(None);
             }
             let index = path_node_str[1..path_node_str.len() - 1].parse::<usize>();
             match index {
-                Ok(index) => PathNode::Index(Some(index)),
-                Err(_) => PathNode::Key(path_node_str[1..path_node_str.len() - 1].to_string()),
+                Ok(index) => PatternNode::Index(Some(index)),
+                Err(_) => PatternNode::Key(path_node_str[1..path_node_str.len() - 1].to_string()),
             }
         }
     }
 
-    fn parse_path(key_str: &str) -> Result<Vec<PathNode>, ParsingError> {
+    fn parse_path(key_str: &str) -> Result<Vec<PatternNode>, ParsingError> {
         // We need to extract the Path nodes All these possible path nodes:
         // .node."quoted".[].[1].["quoted_bracket"]
         let mut trimmed = key_str.trim();
@@ -88,7 +92,7 @@ impl Pattern {
                             eprintln!("Invalid pattern: Unexpected ]");
                             exit(1);
                         }
-                        PathNode::Key(path_node_str.to_string())
+                        PatternNode::Key(path_node_str.to_string())
                     }
                 })
             })
@@ -140,7 +144,7 @@ impl Pattern {
 
 #[cfg(test)]
 mod test {
-    use crate::pattern::PathNode;
+    use crate::pattern::PatternNode;
 
     use super::Pattern;
 
@@ -151,9 +155,9 @@ mod test {
         assert_eq!(
             Pattern {
                 path: vec![
-                    PathNode::Key("a".to_string()),
-                    PathNode::Key("b".to_string()),
-                    PathNode::Key("c".to_string()),
+                    PatternNode::Key("a".to_string()),
+                    PatternNode::Key("b".to_string()),
+                    PatternNode::Key("c".to_string()),
                 ],
                 value: None,
                 or: false,
@@ -183,9 +187,9 @@ mod test {
         assert_eq!(
             Pattern {
                 path: vec![
-                    PathNode::Key("a".to_string()),
-                    PathNode::Key("b".to_string()),
-                    PathNode::Key("c".to_string()),
+                    PatternNode::Key("a".to_string()),
+                    PatternNode::Key("b".to_string()),
+                    PatternNode::Key("c".to_string()),
                 ],
                 value: Some("true".to_string()),
                 or: false,
@@ -200,7 +204,7 @@ mod test {
 
         assert_eq!(
             Pattern {
-                path: vec![PathNode::Key("a".to_string()),],
+                path: vec![PatternNode::Key("a".to_string()),],
                 value: None,
                 or: false,
             },
@@ -215,9 +219,9 @@ mod test {
         assert_eq!(
             Pattern {
                 path: vec![
-                    PathNode::Index(None),
-                    PathNode::Index(Some(1)),
-                    PathNode::Key("potato".to_string())
+                    PatternNode::Index(None),
+                    PatternNode::Index(Some(1)),
+                    PatternNode::Key("potato".to_string())
                 ],
                 value: None,
                 or: false,

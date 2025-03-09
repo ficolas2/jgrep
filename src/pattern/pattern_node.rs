@@ -1,21 +1,21 @@
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum PathNode {
+pub enum PatternNode {
     Key(String),
     Index(Option<usize>),
 }
 
-impl PathNode {
+impl PatternNode {
     pub fn as_key(&self) -> Option<&String> {
         match self {
-            PathNode::Key(k) => Some(k),
+            PatternNode::Key(k) => Some(k),
             _ => None,
         }
     }
 
     pub fn as_index(&self) -> Option<&Option<usize>> {
         match self {
-            PathNode::Index(i) => Some(i),
+            PatternNode::Index(i) => Some(i),
             _ => None,
         }
     }

@@ -1,7 +1,7 @@
 use match_node::MatchNode;
 use serde_json::Value;
 
-use crate::{path_node::PathNode, pattern::Pattern, utils::string_utils::wildcard_match};
+use crate::{pattern::{pattern_node::PatternNode, Pattern}, utils::string_utils::wildcard_match};
 
 pub mod match_node;
 
@@ -15,7 +15,7 @@ pub mod match_node;
 // - When a match is found, it is returned in the result.
 fn match_internal(
     json: &Value,
-    matching_path: &[PathNode],
+    matching_path: &[PatternNode],
     matching_value: &Option<String>,
     path: Vec<MatchNode>,
     head: bool,
@@ -57,7 +57,7 @@ fn match_internal(
         let current_node = &matching_path[0];
         let next_nodes = &matching_path[1..];
         match (json, current_node) {
-            (Value::Array(json_array), PathNode::Index(index)) => {
+            (Value::Array(json_array), PatternNode::Index(index)) => {
                 if let Some(index) = index {
                     if let Some(item) = json_array.get(*index) {
                         let mut next_path = path.clone();
@@ -78,7 +78,7 @@ fn match_internal(
                     }));
                 }
             }
-            (Value::Object(map), PathNode::Key(matching_key)) => result.extend(
+            (Value::Object(map), PatternNode::Key(matching_key)) => result.extend(
                 map.iter()
                     .filter(|(k, _)| wildcard_match(k, matching_key))
                     .flat_map(|(k, v)| {
