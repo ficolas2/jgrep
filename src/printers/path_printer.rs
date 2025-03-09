@@ -2,24 +2,23 @@ use std::io::Write;
 
 use serde_json::Value;
 
-use crate::path_node::PathNode;
+use crate::matcher::match_node::MatchNode;
 
-pub fn print<W: Write>(value: Value, matches: Vec<Vec<PathNode>>, mut writer: W) {
+pub fn print<W: Write>(value: Value, matches: Vec<Vec<MatchNode>>, mut writer: W) {
     for path in matches {
         let mut value_to_print = &value;
         for node in path {
             match node {
-                PathNode::Key(k) => { 
+                MatchNode::Key(match_k) => { 
+                    let k = match_k.key;
                     value_to_print = &value_to_print[&k];
                     write!(writer, ".{}", k).unwrap() 
                 },
-                PathNode::Index(Some(i)) => { 
+                MatchNode::Index(match_i) => { 
+                    let i = match_i.index;
                     value_to_print = &value_to_print[i];
                     write!(writer, "[{}]", i).unwrap() 
                 },
-                PathNode::Index(None) => {
-                    panic!("Print method is not supossed to be called with Path nodes to match")
-                }
             }
         }
         write!(writer, ": {}", value_to_print).unwrap();
@@ -29,7 +28,7 @@ pub fn print<W: Write>(value: Value, matches: Vec<Vec<PathNode>>, mut writer: W)
 
 #[cfg(test)]
 mod test {
-    use crate::path_node::PathNode;
+    use crate::matcher::match_node::MatchNode;
 
     #[test]
     fn test_printer() {
@@ -44,14 +43,14 @@ mod test {
 
         let matches = vec![
             vec![
-                PathNode::Key("a".to_string()),
-                PathNode::Index(Some(0)),
-                PathNode::Key("c".to_string()),
+                MatchNode::new_key("a".to_string(), true),
+                MatchNode::new_index(0, true),
+                MatchNode::new_key("c".to_string(), true),
             ],
             vec![
-                PathNode::Key("a".to_string()),
-                PathNode::Index(Some(3)),
-                PathNode::Index(Some(0)),
+                MatchNode::new_key("a".to_string(), true),
+                MatchNode::new_index(3, true),
+                MatchNode::new_index(0, true),
             ],
         ];
 
