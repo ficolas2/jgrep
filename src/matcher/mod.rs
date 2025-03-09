@@ -18,15 +18,9 @@ fn match_value(json: &Value, matching_value: &str) -> bool {
     }
 }
 
-// The strategy for matching is the following recursive BFS:
-// - Recursively match the paths. If the path is empty, they all will be matches.
-//   - Call match_internal with the advanced path
-//   - The head path, signified by the head bool, is the only path capable of creating new
-//     matches from the starting path. The others can only continue matches.
-// - When the path is fully matched (an empty path or None), then the values can also start being
-//   matched
-// - When a match is found, it is returned in the result.
-//
+// The tree is traversed recursively, with two kinds of heads, match heads and start heads.
+// The match head is the head of the matching path, and the start head is the head from which match
+// paths start.
 // IMPORTANT: match order needs to be preserved. Some of the weird dessign decisions taken in this
 // function are for that reason. If you plan on refactoring, or modifying keep that in mind.
 fn match_internal(
@@ -35,53 +29,61 @@ fn match_internal(
     matching_val: Option<&String>,
     path: Vec<MatchNode>,
     or: bool,
-    head: bool,
+    start_head: bool,
 ) -> Vec<Vec<MatchNode>> {
     let mut result: Vec<Vec<MatchNode>> = Vec::new();
 
+    // Closure to extend the start head path.
+    // The start head is extended only by the start head path. It requires no condition to be
+    // extended.
+    let extend_start_head = |result: &mut Vec<Vec<MatchNode>>, v: &Value, match_node: MatchNode| {
+        let mut next_path = path.clone();
+        next_path.push(match_node);
+        let head_matches = match_internal(v, matching_path, matching_val, next_path, or, true);
+        result.extend(head_matches);
+    };
+
+    // Closure to extend the match path.
+    // When extending the match path, the matching nodes get their first node removed, as it has
+    // already been matched
+    let extend_match = |result: &mut Vec<Vec<MatchNode>>, v: &Value, match_node: MatchNode| {
+        let next_nodes = &matching_path[1..];
+        let mut next_path = path.clone();
+        next_path.push(match_node);
+        let matches = match_internal(v, next_nodes, matching_val, next_path, or, false);
+        result.extend(matches);
+    };
+
+    // Two possibilities, either there are things left to match, in which case, they need to be
+    // matched, and both the start and the match head extended, or the matching path is empty, in
+    // which case only values are checked, and the start head extended.
     if matching_path.is_empty() {
         if or || matching_val.map(|m| match_value(json, m)).unwrap_or(true) {
             result.push(path.clone());
         }
-        if head {
+        if start_head {
             match json {
-                Value::Array(vec) => {
-                    result.extend(vec.iter().enumerate().flat_map(|(index, item)| {
-                        let mut next_path = path.clone();
-                        next_path.push(MatchNode::new_index(index, false));
-
-                        match_internal(item, matching_path, matching_val, next_path, or, true)
-                    }))
-                }
-                Value::Object(map) => result.extend(map.iter().flat_map(|(k, v)| {
-                    let mut next_path = path.clone();
-                    next_path.push(MatchNode::new_key(k.to_string(), false));
-                    match_internal(v, matching_path, matching_val, next_path, or, true)
-                })),
+                Value::Array(vec) => vec.iter().enumerate().for_each(|(v, i)| {
+                    extend_start_head(&mut result, i, MatchNode::new_index(v, false));
+                }),
+                Value::Object(map) => map.iter().for_each(|(k, v)| {
+                    extend_start_head(&mut result, v, MatchNode::new_key(k.to_string(), false));
+                }),
                 _ => {}
             }
         }
     } else {
         let current_node = &matching_path[0];
-        let next_nodes = &matching_path[1..];
         match json {
             Value::Array(json_array) => {
                 for (i, v) in json_array.iter().enumerate() {
                     if let PatternNode::Index(index) = current_node {
                         if Some(i) == *index || index.is_none() {
-                            let mut next_path = path.clone();
-                            next_path.push(MatchNode::new_index(i, true));
-                            let matches =
-                                match_internal(v, next_nodes, matching_val, next_path, or, false);
-                            result.extend(matches);
+                            extend_match(&mut result, v, MatchNode::new_index(i, true));
                         }
                     }
-                    if head {
-                        let mut next_path = path.clone();
-                        next_path.push(MatchNode::new_index(i, false));
-                        let head_matches =
-                            match_internal(v, matching_path, matching_val, next_path, or, true);
-                        result.extend(head_matches);
+                    if start_head {
+                        extend_start_head(&mut result, v, MatchNode::new_index(i, false));
                     }
                 }
             }
@@ -89,25 +91,17 @@ fn match_internal(
                 for (k, v) in map.iter() {
                     if let PatternNode::Key(matching_key) = current_node {
                         if wildcard_match(k, matching_key) {
-                            let mut next_path = path.clone();
-                            next_path.push(MatchNode::new_key(k.to_string(), true));
-                            let matches =
-                                match_internal(v, next_nodes, matching_val, next_path, or, false);
-                            result.extend(matches);
+                            extend_match(&mut result, v, MatchNode::new_key(k.to_string(), true));
                         }
                     }
-                    if head {
-                        let mut next_path = path.clone();
-                        next_path.push(MatchNode::new_key(k.to_string(), false));
-                        let head_matches =
-                            match_internal(v, matching_path, matching_val, next_path, or, true);
-                        result.extend(head_matches);
+                    if start_head {
+                        extend_start_head(&mut result, v, MatchNode::new_key(k.to_string(), false));
                     }
                 }
             }
             _ => {
                 if or && matching_val.map(|m| match_value(json, m)).unwrap_or(false) {
-                    result.push(path.clone());
+                    result.push(path);
                 }
             }
         }
