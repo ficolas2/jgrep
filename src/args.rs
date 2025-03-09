@@ -9,5 +9,8 @@ pub struct Args {
 
     #[clap(short, long)]
     pub json: bool,
+
+    #[clap(short = 'C', long)]
+    pub context: Option<usize>,
 }
 

@@ -7,13 +7,13 @@ use colored::Colorize;
 
 use super::printer_node::PrinterNode;
 
-pub fn print<W: Write>(value: Value, mut matches: Vec<Vec<MatchNode>>, writer: &mut W) {
+pub fn print<W: Write>(value: Value, mut matches: Vec<Vec<MatchNode>>, context: usize, writer: &mut W) {
     match value {
         Value::Array(_) | Value::Object(_) => {
             let mut printer_node = PrinterNode::new_printed_node_for(&value);
             // printer_node.set_highlight(true);
             for m in matches.iter_mut() {
-                add_matches(&mut printer_node, &value, m.clone(), 0);
+                add_matches(&mut printer_node, &value, m.clone(), context);
             }
             // sort_matches(&mut matches);
             print_node(None, &printer_node, 0, writer);
@@ -33,10 +33,14 @@ fn add_matches(
     printer_node: &mut PrinterNode,
     json: &Value,
     mut m: Vec<MatchNode>,
-    _context: usize,
+    context: usize,
 ) {
     let next_node = m.first();
     if let Some(next_node) = next_node {
+        if m.len() <= context {
+            printer_node.insert_full(json);
+        }
+
         let next_json = get_value(json, next_node);
         let next_printer_node = printer_node.get_or_insert(next_node, next_json);
         if next_node.is_highlighted() {
@@ -45,7 +49,7 @@ fn add_matches(
         match next_printer_node {
             PrinterNode::Array { .. } | PrinterNode::Object { .. } => {
                 m.remove(0);
-                add_matches(next_printer_node, next_json, m, _context);
+                add_matches(next_printer_node, next_json, m, context);
             }
             _ => {}
         }

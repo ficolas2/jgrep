@@ -57,10 +57,12 @@ fn main() {
         },
     };
 
+    let context = args.context.unwrap_or(0);
+
     let matches = matcher::match_pattern(&json, &pattern);
 
     if args.json {
-        printers::json_printer::print(json, matches, &mut std::io::stdout());
+        printers::json_printer::print(json, matches, context, &mut std::io::stdout());
     } else {
         printers::path_printer::print(json, matches, std::io::stdout());
     }
