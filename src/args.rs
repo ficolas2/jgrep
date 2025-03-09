@@ -6,5 +6,8 @@ use clap::Parser;
 pub struct Args {
     pub pattern: String,
     pub path: Option<String>,
+
+    #[clap(short, long)]
+    pub json: bool,
 }
 

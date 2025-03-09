@@ -10,11 +10,14 @@ mod pattern;
 
 pub mod utils {
     pub mod string_utils;
+    pub mod match_utils;
 }
 
 pub mod printers {
     pub mod path_printer;
     pub mod json_printer;
+
+    mod printer_node;
 }
 
 pub mod errors {
@@ -56,6 +59,11 @@ fn main() {
 
     let matches = matcher::match_pattern(&json, &pattern);
 
-    printers::path_printer::print(json, matches, std::io::stdout());
+    if args.json {
+        printers::json_printer::print(json, matches, &mut std::io::stdout());
+    } else {
+        printers::path_printer::print(json, matches, std::io::stdout());
+    }
+
 
 }

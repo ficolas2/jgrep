@@ -14,5 +14,10 @@ categories = ["command-line-utilities"]
 
 [dependencies]
 clap = { version = "4.5.20", features = ["derive"] }
+colored = "3.0.0"
+itertools = "0.14.0"
 serde = "1.0.218"
 serde_json = { version = "1.0.140", features = ["arbitrary_precision"] }
+
+[dev-dependencies]
+indoc = "2.0.6"
