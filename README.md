@@ -141,6 +141,43 @@ jgrep 'Jane' filename -C 1
 #> }
 ```
 
+Also works with the ``-json`` (``-j``) flag, increasing the context level:
+<!-- Test: context_json -->
+```bash
+jgrep "Jane" filename -C 2 -j
+#> {
+#>   "items": [
+#>     {
+#>       "meta": {
+#>         "rating": 3.9,
+#>         "author": {
+#>           "name": "Jane",
+#>           "verified": true
+#>         }
+#>       }
+#>     },
+#>   ]
+#> }
+```
+
+In comparison to no context:
+<!-- Test: no_context_json -->
+```bash
+jgrep "Jane" filename -j
+#> {
+#>   "items": [
+#>     {
+#>       "meta": {
+#>         "author": {
+#>           "name": "Jane"
+#>         }
+#>       }
+#>     },
+#>   ]
+#> }
+```
+It increases the JSON printed two levels backwards (in this case, with ``-C 2``)
+
 <!-- #### Ignore case -->
 <!-- You can use the ``--ignore-case`` (``-i``) flag to ignore the case of the query. -->
 <!-- ```bash -->
