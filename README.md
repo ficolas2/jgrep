@@ -58,6 +58,7 @@ We will use the following JSON for all the examples:
 
 ### Query language
 Jgrep uses a very simple query language, based on the JSON path syntax, and admitting wildcards (* and ?) for keys and values.
+<!-- Test: query_lang_simple -->
 ```bash
 jgrep 'Jane' filename
 #> .items[1].meta.author.name: "Jane"
@@ -66,6 +67,7 @@ jgrep 'Jane' filename
 Will look for all the occurrences of 'Jane', in keys or values, and it will return the path to it.
 
 You can also look for keys only, by putting the keys before a colon (:), or starting it with a dot (.):
+<!-- Test: query_lang_keys -->
 ```bash
 jgrep 'author:' filename
 # or
@@ -81,6 +83,7 @@ jgrep '.meta.author' filename
 ```
 
 Or for values only, by putting the value after a colon:
+<!-- Test: query_lang_values -->
 ```bash
 jgrep ': true' filename
 #> .items[0].active: true
@@ -88,12 +91,14 @@ jgrep ': true' filename
 ```
 
 Or for values and keys, having the key before a colon and the value after it:
+<!-- Test: query_lang_values_and_keys -->
 ```bash
 jgrep '.rating: 4.7' filename
 #> .items[0].meta.rating: 4.7
 ```
 
 And you can use wildcards:
+<!-- Test: query_lang_wildcard -->
 ```bash
 jgrep '.name: J*n*' filename
 #> .items[0].meta.author.name: "John"
@@ -103,6 +108,7 @@ jgrep '.name: Jan?' filename
 ```
 
 Wildcards work with numbers too:
+<!-- Test: query_lang_wildcard_number -->
 ```bash
 jgrep '.rating: 4.*' filename
 #> .items[0].meta.rating: 4.7
@@ -112,6 +118,7 @@ jgrep '.rating: 4.*' filename
 #### Displaying JSON instead of the path
 If you want to see the whole matched json, not just the path to the matched part, use the ``--json`` (``-j``) flag.
 The path to the current match will be displayed in a different color, if the terminal supports it.
+<!-- Test: flags_json -->
 ```bash
 jgrep '.rating' filename -j
 #> {
@@ -133,6 +140,7 @@ jgrep '.rating' filename -j
 #### Context
 Like for grep, ``--context`` (``-C``) displays information around the match. In jgrep, each context prints one previous level of the JSON object.
 The path to the current match will be displayed in a different color, if the terminal supports it.
+<!-- Test: context -->
 ```bash
 jgrep 'Jane' filename -C 1
 #> .items[1].meta.author: {
