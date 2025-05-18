@@ -1,0 +1,23 @@
+{
+  "items": [
+    {
+      "id": 1,
+      "name": "Lorem",
+      "active": true,
+      "meta": {
+        "rating": 4.7,
+        "author": { "name": "John", "verified": false }
+      }
+    },
+    {
+      "id": 2,
+      "name": "Ipsum",
+      "active": false,
+      "meta": {
+        "rating": 3.9,
+        "author": { "name": "Jane", "verified": true }
+      }
+    }
+  ]
+}
+
