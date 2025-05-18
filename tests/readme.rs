@@ -134,12 +134,7 @@ fn flags_json() {
 
 #[test]
 fn context() {
-    let out = indoc!(r#"
-        .items[1].meta.author: {
-          "name": "Jane", 
-          "verified": true 
-        }
-    "#);
+    let out = ".items[1].meta.author: {\"name\":\"Jane\",\"verified\":true}\n";
 
     let mut cmd = Command::cargo_bin("jgrep").unwrap();
     cmd.arg("Jane");

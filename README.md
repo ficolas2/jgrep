@@ -143,10 +143,7 @@ The path to the current match will be displayed in a different color, if the ter
 <!-- Test: context -->
 ```bash
 jgrep 'Jane' filename -C 1
-#> .items[1].meta.author: {
-#>   "name": "Jane", 
-#>   "verified": true 
-#> }
+#> .items[1].meta.author: {"name":"Jane","verified":true}
 ```
 
 Also works with the ``-json`` (``-j``) flag, increasing the context level:

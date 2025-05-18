@@ -1,12 +1,15 @@
-use std::io::Write;
+use std::{cmp::min, io::Write};
 
 use serde_json::Value;
 
 use crate::matcher::match_node::MatchNode;
 
-pub fn print<W: Write>(value: Value, matches: Vec<Vec<MatchNode>>, mut writer: W) {
+pub fn print<W: Write>(value: Value, matches: Vec<Vec<MatchNode>>, context: usize, mut writer: W) {
     for path in matches {
         let mut value_to_print = &value;
+        let mut path = path.clone();
+        path.truncate(path.len() - min(path.len() - 1, context));
+
         for node in path {
             match node {
                 MatchNode::Key(match_k) => { 
@@ -55,7 +58,7 @@ mod test {
         ];
 
         let mut output = Vec::new();
-        super::print(value, matches, &mut output);
+        super::print(value, matches, 0, &mut output);
         let output = String::from_utf8(output).unwrap();
 
         assert_eq!(output, ".a[0].c: 0\n.a[3][0]: {\"patatas\":\"felices\"}\n")
