@@ -115,6 +115,15 @@ jgrep '.rating: 4.*' filename
 ```
 
 ### Flags
+#### Displaying only the match
+Prints just the matching key, value, or key-value pair. Useful for piping or processing the raw matched data.
+<!-- Test: flags_only -->
+```bash
+jgrep '.author' filename -o
+#> {"name":"John","verified":false}
+#> {"name":"Jane","verified":true}
+```
+
 #### Displaying JSON instead of the path
 If you want to see the whole matched json, not just the path to the matched part, use the ``--json`` (``-j``) flag.
 The path to the current match will be displayed in a different color, if the terminal supports it.
