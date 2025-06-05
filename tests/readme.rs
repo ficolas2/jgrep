@@ -133,6 +133,21 @@ fn flags_json() {
 }
 
 #[test]
+fn flags_only() {
+    let out = indoc!(r#"
+        {"name":"John","verified":false}
+        {"name":"Jane","verified":true}
+    "#);
+
+    let mut cmd = Command::cargo_bin("jgrep").unwrap();
+    cmd.arg(".author");
+    cmd.arg("-o");
+    cmd.write_stdin(json_constants::README_EXAMPLE);
+
+    cmd.assert().code(0).stdout(out);
+}
+
+#[test]
 fn context() {
     let out = ".items[1].meta.author: {\"name\":\"Jane\",\"verified\":true}\n";
 

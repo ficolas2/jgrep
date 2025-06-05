@@ -4,6 +4,7 @@ use serde_json::Value;
 
 use crate::matcher::match_node::MatchNode;
 
+
 pub fn print<W: Write>(value: Value, matches: Vec<Vec<MatchNode>>, context: usize, mut writer: W) {
     for path in matches {
         let mut value_to_print = &value;
@@ -15,26 +16,24 @@ pub fn print<W: Write>(value: Value, matches: Vec<Vec<MatchNode>>, context: usiz
                 MatchNode::Key(match_k) => { 
                     let k = match_k.key;
                     value_to_print = &value_to_print[&k];
-                    write!(writer, ".{}", k).unwrap() 
                 },
                 MatchNode::Index(match_i) => { 
                     let i = match_i.index;
                     value_to_print = &value_to_print[i];
-                    write!(writer, "[{}]", i).unwrap() 
                 },
             }
         }
-        write!(writer, ": {}", value_to_print).unwrap();
+        write!(writer, "{}", value_to_print).unwrap();
         writeln!(writer).unwrap();
     }
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use crate::matcher::match_node::MatchNode;
 
     #[test]
-    fn test_path_printer() {
+    fn test_only_printer() {
         let value = serde_json::json!({
             "a": [
                 { "c": 0 },
@@ -61,6 +60,6 @@ mod test {
         super::print(value, matches, 0, &mut output);
         let output = String::from_utf8(output).unwrap();
 
-        assert_eq!(output, ".a[0].c: 0\n.a[3][0]: {\"patatas\":\"felices\"}\n")
+        assert_eq!(output, "0\n{\"patatas\":\"felices\"}\n")
     }
 }
