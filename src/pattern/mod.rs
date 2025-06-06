@@ -118,13 +118,29 @@ impl Pattern {
     /// - If it doesn't, and it starts with a dot (.), then it is a key
     /// - If neither of those is true, then it matches both, path and values.
     pub fn parse(pattern_str: &str) -> Result<Pattern, ParsingError> {
-        let colons = string_utils::find_all_outside_quotes(pattern_str, ':');
+        let pattern_str = if pattern_str.is_empty() {
+            pattern_str.to_string()
+        } else {
+            match (
+                pattern_str.chars().next().unwrap(),
+                pattern_str.chars().last().unwrap(),
+            ) {
+                ('.' | ':' | '*' | '[' | '"', '.' | ':' | '*' | ']' | '"') => {
+                    pattern_str.to_string()
+                }
+                (_, '.' | ':' | '*' | ']' | '"') => format!("*{}", pattern_str),
+                ('.' | ':' | '*' | '[' | '"', _) => format!("{}*", pattern_str),
+                (_, _) => format!("*{}*", pattern_str),
+            }
+        };
+
+        let colons = string_utils::find_all_outside_quotes(&pattern_str, ':');
 
         let (path, value, or) = match colons.as_slice() {
             [] => {
-                let value = Self::parse_value(pattern_str)?;
+                let value = Self::parse_value(&pattern_str)?;
                 let or = value.is_some();
-                (Self::parse_path(pattern_str)?, value, or)
+                (Self::parse_path(&pattern_str)?, value, or)
             }
             [i] => (
                 Self::parse_path(&pattern_str[..*i])?,
@@ -157,7 +173,7 @@ mod test {
                 path: vec![
                     PatternNode::Key("a".to_string()),
                     PatternNode::Key("b".to_string()),
-                    PatternNode::Key("c".to_string()),
+                    PatternNode::Key("c*".to_string()),
                 ],
                 value: None,
                 or: false,
@@ -173,7 +189,7 @@ mod test {
         assert_eq!(
             Pattern {
                 path: vec![],
-                value: Some("true".to_string()),
+                value: Some("true*".to_string()),
                 or: false,
             },
             pattern
@@ -191,7 +207,7 @@ mod test {
                     PatternNode::Key("b".to_string()),
                     PatternNode::Key("c".to_string()),
                 ],
-                value: Some("true".to_string()),
+                value: Some("true*".to_string()),
                 or: false,
             },
             pattern
