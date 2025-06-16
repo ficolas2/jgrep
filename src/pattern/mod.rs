@@ -11,6 +11,7 @@ pub struct Pattern {
     pub path: Vec<PatternNode>,
     pub value: Option<String>,
     pub or: bool,
+    pub start_at_root: bool,
 }
 
 impl Pattern {
@@ -51,6 +52,11 @@ impl Pattern {
 
         if trimmed.is_empty() {
             return Ok(vec![]);
+        }
+
+        // To avoid matching a $ key when asserting the start
+        if trimmed.starts_with("$.") {
+            trimmed = &trimmed[1..];
         }
 
         // Needed for the '.[]' case, to avoid empty path nodes
@@ -102,7 +108,7 @@ impl Pattern {
     fn parse_value(value_str: &str) -> Result<Option<String>, ParsingError> {
         let trimmed = value_str.trim();
 
-        if trimmed.starts_with('.') {
+        if trimmed.starts_with('.') || trimmed.starts_with("$.") {
             return Ok(None);
         }
 
@@ -118,21 +124,21 @@ impl Pattern {
     /// - If it doesn't, and it starts with a dot (.), then it is a key
     /// - If neither of those is true, then it matches both, path and values.
     pub fn parse(pattern_str: &str) -> Result<Pattern, ParsingError> {
-        let pattern_str = if pattern_str.is_empty() {
-            pattern_str.to_string()
+        let first = pattern_str.chars().next();
+        let last = pattern_str.chars().last();
+
+        let start_at_root = pattern_str.starts_with("$.");
+
+        #[rustfmt::skip]
+        let (start_wildcard, end_wildcard) = if let (Some(first), Some(last)) = (first, last) {
+            (
+                if matches!(first, '.' | ':' | '*' | '[' | '"') | start_at_root { "" } else { "*" },
+                if matches!(last, '.' | ':' | '*' | ']' | '"') { "" } else { "*" },
+            )
         } else {
-            match (
-                pattern_str.chars().next().unwrap(),
-                pattern_str.chars().last().unwrap(),
-            ) {
-                ('.' | ':' | '*' | '[' | '"', '.' | ':' | '*' | ']' | '"') => {
-                    pattern_str.to_string()
-                }
-                (_, '.' | ':' | '*' | ']' | '"') => format!("*{}", pattern_str),
-                ('.' | ':' | '*' | '[' | '"', _) => format!("{}*", pattern_str),
-                (_, _) => format!("*{}*", pattern_str),
-            }
+            ("", "")
         };
+        let pattern_str = format!("{}{}{}", start_wildcard, pattern_str, end_wildcard,);
 
         let colons = string_utils::find_all_outside_quotes(&pattern_str, ':');
 
@@ -154,7 +160,12 @@ impl Pattern {
             }
         };
 
-        Ok(Pattern { path, value, or })
+        Ok(Pattern {
+            path,
+            value,
+            or,
+            start_at_root,
+        })
     }
 }
 
@@ -177,6 +188,7 @@ mod test {
                 ],
                 value: None,
                 or: false,
+                start_at_root: false,
             },
             pattern
         );
@@ -191,6 +203,7 @@ mod test {
                 path: vec![],
                 value: Some("true*".to_string()),
                 or: false,
+                start_at_root: false,
             },
             pattern
         );
@@ -209,6 +222,7 @@ mod test {
                 ],
                 value: Some("true*".to_string()),
                 or: false,
+                start_at_root: false,
             },
             pattern
         );
@@ -223,6 +237,7 @@ mod test {
                 path: vec![PatternNode::Key("a".to_string()),],
                 value: None,
                 or: false,
+                start_at_root: false,
             },
             pattern
         );
@@ -241,6 +256,26 @@ mod test {
                 ],
                 value: None,
                 or: false,
+                start_at_root: false,
+            },
+            pattern
+        );
+    }
+
+    #[test]
+    fn test_start_at_root() {
+        let pattern = Pattern::parse("$.a.b.c").unwrap();
+
+        assert_eq!(
+            Pattern {
+                path: vec![
+                    PatternNode::Key("a".to_string()),
+                    PatternNode::Key("b".to_string()),
+                    PatternNode::Key("c*".to_string()),
+                ],
+                value: None,
+                or: false,
+                start_at_root: true
             },
             pattern
         );
