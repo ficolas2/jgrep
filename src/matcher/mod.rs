@@ -116,7 +116,7 @@ pub fn match_pattern(json: &Value, pattern: &Pattern) -> Vec<Vec<MatchNode>> {
         pattern.value.as_ref(),
         vec![],
         pattern.or,
-        true,
+        !pattern.start_at_root,
     );
     matches.dedup();
     matches
@@ -263,5 +263,19 @@ pub mod tests {
                 MatchNode::new_key("c".to_string(), true)
             ]]
         )
+    }
+
+    #[test]
+    fn start_at_root() {
+        let pattern = Pattern::parse("$.a").unwrap();
+
+        let json = json!({ "a": 1, "b": { "a": 2}});
+
+        let result = match_pattern(&json, &pattern);
+
+        assert_eq!(
+            result,
+            vec![vec![MatchNode::new_key("a".to_string(), true)]]
+        );
     }
 }
