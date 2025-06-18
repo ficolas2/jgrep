@@ -83,9 +83,7 @@ impl Pattern {
                 }
 
                 if start == end {
-                    return Err(ParsingError::new(
-                        "Invalid pattern: Empty path node".to_string(),
-                    ));
+                    return Ok(PatternNode::Recursive());
                 }
 
                 let path_node_str = &trimmed[start..end];
@@ -279,5 +277,39 @@ mod test {
             },
             pattern
         );
+    }
+
+    #[test]
+    fn test_recursive_at_root() {
+        let pattern = Pattern::parse("$..[]").unwrap();
+
+        assert_eq!(
+            Pattern {
+                path: vec![PatternNode::Recursive(), PatternNode::Index(None),],
+                value: None,
+                or: false,
+                start_at_root: true
+            },
+            pattern
+        )
+    }
+
+    #[test]
+    fn test_recursive() {
+        let pattern = Pattern::parse(".a..b").unwrap();
+
+        assert_eq!(
+            Pattern {
+                path: vec![
+                    PatternNode::Key("a".to_string()),
+                    PatternNode::Recursive(),
+                    PatternNode::Key("b*".to_string()),
+                ],
+                value: None,
+                or: false,
+                start_at_root: false
+            },
+            pattern
+        )
     }
 }

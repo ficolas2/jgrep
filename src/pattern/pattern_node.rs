@@ -3,6 +3,7 @@
 pub enum PatternNode {
     Key(String),
     Index(Option<usize>),
+    Recursive(),
 }
 
 impl PatternNode {
