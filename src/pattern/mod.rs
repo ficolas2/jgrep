@@ -34,7 +34,9 @@ impl Pattern {
         if path_node_str.chars().nth(1) == Some('"') {
             Self::extract_quoted(&path_node_str[1..path_node_str.len() - 1])
         } else {
-            if path_node_str.len() == 2 {
+            if path_node_str.len() == 2
+                || path_node_str.len() == 3 && path_node_str.chars().nth(1) == Some('*')
+            {
                 return PatternNode::Index(None);
             }
             let index = path_node_str[1..path_node_str.len() - 1].parse::<usize>();
