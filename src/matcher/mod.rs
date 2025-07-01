@@ -101,7 +101,7 @@ fn match_internal(
             Value::Array(json_array) => {
                 for (i, v) in json_array.iter().enumerate() {
                     if let PatternNode::Index(index) = current_node {
-                        if Some(i) == *index || index.is_none() {
+                        if index.matches(i, json_array.len()) {
                             let node = MatchNode::new_index(i, true);
                             extend_match(&mut result, v, node);
                         }
@@ -346,4 +346,78 @@ pub mod tests {
             ]
         );
     }
+
+    #[test]
+    fn test_index_list() {
+        let pattern = Pattern::parse(".[0,2]").unwrap();
+
+        let json = json!([0, 1, 2, 3, 4]);
+
+        let result = match_pattern(&json, &pattern);
+        assert_eq!(
+            result,
+            vec![vec![
+                MatchNode::new_index(0, true),
+            ], vec![
+                MatchNode::new_index(2, true)
+            ]]
+        );
+    }
+
+    #[test]
+    fn test_index_range() {
+        let pattern = Pattern::parse(".[1:3]").unwrap();
+
+        let json = json!([0, 1, 2, 3, 4]);
+
+        let result = match_pattern(&json, &pattern);
+
+        assert_eq!(
+            result,
+            vec![vec![
+                MatchNode::new_index(1, true),
+            ], vec![
+                MatchNode::new_index(2, true)
+            ]]
+        );
+    }
+
+    #[test]
+    fn test_index_range_last() {
+        let pattern = Pattern::parse(".[2:]").unwrap();
+
+        let json = json!([0, 1, 2, 3, 4]);
+
+        let result = match_pattern(&json, &pattern);
+
+        assert_eq!(
+            result,
+            vec![vec![
+                MatchNode::new_index(2, true),
+            ], vec![
+                MatchNode::new_index(3, true),
+            ], vec![
+                MatchNode::new_index(4, true)
+            ]]
+        );
+    }
+
+    #[test]
+    fn test_index_last_n() {
+        let pattern = Pattern::parse(".[-2:]").unwrap();
+
+        let json = json!([0, 1, 2, 3, 4]);
+
+        let result = match_pattern(&json, &pattern);
+
+        assert_eq!(
+            result,
+            vec![vec![
+                MatchNode::new_index(3, true),
+            ], vec![
+                MatchNode::new_index(4, true)
+            ]]
+        );
+    }
+
 }

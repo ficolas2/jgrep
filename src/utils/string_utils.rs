@@ -26,6 +26,31 @@ pub fn find_all_outside_quotes<T: AsRef<str>>(str: T, needle: char) -> Vec<usize
     indexes
 }
 
+pub fn find_all_outside_quotes_and_brackets<T: AsRef<str>>(str: T, needle: char) -> Vec<usize> {
+    let mut indexes = Vec::new();
+
+    let mut quoted = false;
+    let mut escaped = false;
+    let mut bracket_count = 0;
+    for (i, c) in str.as_ref().chars().enumerate() {
+        match (escaped, quoted, bracket_count, c) {
+            (_, _, _, '\\') => escaped = !escaped,
+            (false, false, _, '"') => quoted = true,
+            (false, false, _, '[') => bracket_count += 1,
+            (false, false, _, ']') => bracket_count -= 1,
+            (false, false, 0, _) => {
+                if c == needle {
+                    indexes.push(i);
+                }
+            }
+            (false, true, _, '"') => quoted = false,
+            (_, _, _, _) => {}
+        }
+    }
+
+    indexes
+}
+
 pub fn wildcard_match_internal(mut haystack: Chars, mut needle: Peekable<Chars>) -> bool {
     loop {
         match needle.peek() {
