@@ -11,7 +11,6 @@ mod matcher;
 mod pattern;
 
 pub mod utils {
-    pub mod match_utils;
     pub mod string_utils;
 }
 

@@ -1,6 +1,6 @@
 use std::process::exit;
 
-use pattern_node::PatternNode;
+use pattern_node::{IndexPattern, PatternNode};
 
 use crate::{errors::parsing_error::ParsingError, utils::string_utils};
 
@@ -11,6 +11,7 @@ pub struct Pattern {
     pub path: Vec<PatternNode>,
     pub value: Option<String>,
     pub or: bool,
+    pub start_at_root: bool,
 }
 
 impl Pattern {
@@ -33,13 +34,66 @@ impl Pattern {
         if path_node_str.chars().nth(1) == Some('"') {
             Self::extract_quoted(&path_node_str[1..path_node_str.len() - 1])
         } else {
-            if path_node_str.len() == 2 {
-                return PatternNode::Index(None);
+            let inner_str = &path_node_str[1..path_node_str.len() - 1];
+            // All [*] or []
+            if inner_str.is_empty() || inner_str == "*" {
+                return PatternNode::Index(IndexPattern::All);
             }
-            let index = path_node_str[1..path_node_str.len() - 1].parse::<usize>();
+
+            // Range + Last N
+            if inner_str.contains(':') {
+                let parts: Vec<&str> = inner_str.split(':').collect();
+                if parts.len() > 2 {
+                    eprintln!("Invalid pattern: More than one colon found in brackets");
+                    exit(1);
+                }
+
+                let start = match parts[0].parse::<i64>() {
+                    Ok(start) => start,
+                    Err(_) => {
+                        eprintln!("Invalid pattern: Could not parse start index in brackets");
+                        exit(1);
+                    }
+                };
+                let end = if parts.len() == 2 {
+                    parts[1].parse::<usize>().ok()
+                } else {
+                    None
+                };
+                // Last N
+                if start < 0 {
+                    if end.is_some() {
+                        eprintln!("Invalid pattern: Negative start index with end index");
+                        exit(1);
+                    } else {
+                        return PatternNode::Index(IndexPattern::LastN(-start as usize));
+                    }
+                }
+
+                return PatternNode::Index(IndexPattern::Range(start as usize, end));
+            }
+
+            // List
+            if inner_str.contains(",") {
+                let indices: Result<Vec<usize>, _> = inner_str
+                    .split(',')
+                    .map(|s| s.trim().parse::<usize>())
+                    .collect();
+
+                match indices {
+                    Ok(indices) => return PatternNode::Index(IndexPattern::List(indices)),
+                    Err(_) => {
+                        eprintln!("Invalid pattern: Could not parse indices in brackets");
+                        exit(1);
+                    }
+                }
+            }
+
+            // Number
+            let index = inner_str.parse::<usize>();
             match index {
-                Ok(index) => PatternNode::Index(Some(index)),
-                Err(_) => PatternNode::Key(path_node_str[1..path_node_str.len() - 1].to_string()),
+                Ok(index) => PatternNode::Index(IndexPattern::List(vec![index])),
+                Err(_) => PatternNode::Key(inner_str.to_string()),
             }
         }
     }
@@ -51,6 +105,11 @@ impl Pattern {
 
         if trimmed.is_empty() {
             return Ok(vec![]);
+        }
+
+        // To avoid matching a $ key when asserting the start
+        if trimmed.starts_with("$.") {
+            trimmed = &trimmed[1..];
         }
 
         // Needed for the '.[]' case, to avoid empty path nodes
@@ -77,9 +136,7 @@ impl Pattern {
                 }
 
                 if start == end {
-                    return Err(ParsingError::new(
-                        "Invalid pattern: Empty path node".to_string(),
-                    ));
+                    return Ok(PatternNode::Recursive());
                 }
 
                 let path_node_str = &trimmed[start..end];
@@ -102,7 +159,7 @@ impl Pattern {
     fn parse_value(value_str: &str) -> Result<Option<String>, ParsingError> {
         let trimmed = value_str.trim();
 
-        if trimmed.starts_with('.') {
+        if trimmed.starts_with('.') || trimmed.starts_with("$.") {
             return Ok(None);
         }
 
@@ -118,23 +175,23 @@ impl Pattern {
     /// - If it doesn't, and it starts with a dot (.), then it is a key
     /// - If neither of those is true, then it matches both, path and values.
     pub fn parse(pattern_str: &str) -> Result<Pattern, ParsingError> {
-        let pattern_str = if pattern_str.is_empty() {
-            pattern_str.to_string()
-        } else {
-            match (
-                pattern_str.chars().next().unwrap(),
-                pattern_str.chars().last().unwrap(),
-            ) {
-                ('.' | ':' | '*' | '[' | '"', '.' | ':' | '*' | ']' | '"') => {
-                    pattern_str.to_string()
-                }
-                (_, '.' | ':' | '*' | ']' | '"') => format!("*{}", pattern_str),
-                ('.' | ':' | '*' | '[' | '"', _) => format!("{}*", pattern_str),
-                (_, _) => format!("*{}*", pattern_str),
-            }
-        };
+        let first = pattern_str.chars().next();
+        let last = pattern_str.chars().last();
 
-        let colons = string_utils::find_all_outside_quotes(&pattern_str, ':');
+        let start_at_root = pattern_str.starts_with("$.");
+
+        #[rustfmt::skip]
+        let (start_wildcard, end_wildcard) = if let (Some(first), Some(last)) = (first, last) {
+            (
+                if matches!(first, '.' | ':' | '*' | '[' | '"') | start_at_root { "" } else { "*" },
+                if matches!(last, '.' | ':' | '*' | ']' | '"') { "" } else { "*" },
+            )
+        } else {
+            ("", "")
+        };
+        let pattern_str = format!("{}{}{}", start_wildcard, pattern_str, end_wildcard,);
+
+        let colons = string_utils::find_all_outside_quotes_and_brackets(&pattern_str, ':');
 
         let (path, value, or) = match colons.as_slice() {
             [] => {
@@ -154,13 +211,18 @@ impl Pattern {
             }
         };
 
-        Ok(Pattern { path, value, or })
+        Ok(Pattern {
+            path,
+            value,
+            or,
+            start_at_root,
+        })
     }
 }
 
 #[cfg(test)]
 mod test {
-    use crate::pattern::PatternNode;
+    use crate::pattern::{pattern_node::IndexPattern, PatternNode};
 
     use super::Pattern;
 
@@ -177,6 +239,7 @@ mod test {
                 ],
                 value: None,
                 or: false,
+                start_at_root: false,
             },
             pattern
         );
@@ -191,6 +254,7 @@ mod test {
                 path: vec![],
                 value: Some("true*".to_string()),
                 or: false,
+                start_at_root: false,
             },
             pattern
         );
@@ -209,6 +273,7 @@ mod test {
                 ],
                 value: Some("true*".to_string()),
                 or: false,
+                start_at_root: false,
             },
             pattern
         );
@@ -223,6 +288,7 @@ mod test {
                 path: vec![PatternNode::Key("a".to_string()),],
                 value: None,
                 or: false,
+                start_at_root: false,
             },
             pattern
         );
@@ -235,14 +301,142 @@ mod test {
         assert_eq!(
             Pattern {
                 path: vec![
-                    PatternNode::Index(None),
-                    PatternNode::Index(Some(1)),
+                    PatternNode::Index(IndexPattern::All),
+                    PatternNode::Index(IndexPattern::List(vec![1])),
                     PatternNode::Key("potato".to_string())
                 ],
                 value: None,
                 or: false,
+                start_at_root: false,
             },
             pattern
         );
+    }
+
+    #[test]
+    fn test_start_at_root() {
+        let pattern = Pattern::parse("$.a.b.c").unwrap();
+
+        assert_eq!(
+            Pattern {
+                path: vec![
+                    PatternNode::Key("a".to_string()),
+                    PatternNode::Key("b".to_string()),
+                    PatternNode::Key("c*".to_string()),
+                ],
+                value: None,
+                or: false,
+                start_at_root: true
+            },
+            pattern
+        );
+    }
+
+    #[test]
+    fn test_recursive_at_root() {
+        let pattern = Pattern::parse("$..[]").unwrap();
+
+        assert_eq!(
+            Pattern {
+                path: vec![
+                    PatternNode::Recursive(),
+                    PatternNode::Index(IndexPattern::All),
+                ],
+                value: None,
+                or: false,
+                start_at_root: true
+            },
+            pattern
+        )
+    }
+
+    #[test]
+    fn test_recursive() {
+        let pattern = Pattern::parse(".a..b").unwrap();
+
+        assert_eq!(
+            Pattern {
+                path: vec![
+                    PatternNode::Key("a".to_string()),
+                    PatternNode::Recursive(),
+                    PatternNode::Key("b*".to_string()),
+                ],
+                value: None,
+                or: false,
+                start_at_root: false
+            },
+            pattern
+        )
+    }
+
+    #[test]
+    fn test_index_list() {
+        let pattern = Pattern::parse(".a[1,2,3]").unwrap();
+
+        assert_eq!(
+            Pattern {
+                path: vec![
+                    PatternNode::Key("a".to_string()),
+                    PatternNode::Index(IndexPattern::List(vec![1, 2, 3])),
+                ],
+                value: None,
+                or: false,
+                start_at_root: false,
+            },
+            pattern
+        );
+    }
+
+    #[test]
+    fn test_index_range() {
+        let pattern = Pattern::parse(".a[1:3]").unwrap();
+
+        assert_eq!(
+            Pattern {
+                path: vec![
+                    PatternNode::Key("a".to_string()),
+                    PatternNode::Index(IndexPattern::Range(1, Some(3))),
+                ],
+                value: None,
+                or: false,
+                start_at_root: false,
+            },
+            pattern
+        )
+    }
+
+    #[test]
+    fn test_index_range_last() {
+        let pattern = Pattern::parse(".[3:]").unwrap();
+
+        assert_eq!(
+            Pattern {
+                path: vec![
+                    PatternNode::Index(IndexPattern::Range(3, None)),
+                ],
+                value: None,
+                or: false,
+                start_at_root: false,
+            },
+            pattern
+        )
+    }
+
+
+    #[test]
+    fn test_index_last_n() {
+        let pattern = Pattern::parse("[-2:]").unwrap();
+
+        assert_eq!(
+            Pattern {
+                path: vec![
+                    PatternNode::Index(IndexPattern::LastN(2)),
+                ],
+                value: Some("[-2:]".to_string()),
+                or: true,
+                start_at_root: false,
+            },
+            pattern
+        )
     }
 }

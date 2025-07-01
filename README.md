@@ -58,6 +58,7 @@ We will use the following JSON for all the examples:
 
 ### Query language
 Jgrep uses a very simple query language, based on the JSON path syntax, and admitting wildcards (* and ?) for keys and values.
+It allows using the typical JSONPath constructs, like `$.key`, or `$.key..key`, but also admits a simple syntax allowing for partial matches, recursive searches, wildcards and more.
 <!-- Test: query_lang_simple -->
 ```bash
 jgrep 'Jane' filename
@@ -67,6 +68,7 @@ jgrep 'Jane' filename
 Will look for all the occurrences of 'Jane', in keys or values, and it will return the path to it.
 
 You can also look for keys only, by putting the keys before a colon (:), or starting it with a dot (.):
+In contrast to JSONPath, the dot by itself, does not assert the start of the match at the root of the JSON, but at any level.
 <!-- Test: query_lang_keys -->
 ```bash
 jgrep 'author:' filename

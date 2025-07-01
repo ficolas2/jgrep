@@ -54,6 +54,16 @@ fn match_internal(
         result.extend(matches);
     };
 
+    // Closure to extend the match path recursively.
+    // Doesn't remove the first node, as it is a recursive match.
+    let extend_match_recursive =
+        |result: &mut Vec<Vec<MatchNode>>, v: &Value, match_node: MatchNode| {
+            let mut next_path = path.clone();
+            next_path.push(match_node);
+            let matches = match_internal(v, matching_path, matching_val, next_path, or, false);
+            result.extend(matches);
+        };
+
     // Two possibilities, either there are things left to match, in which case, they need to be
     // matched, and both the start and the match head extended, or the matching path is empty, in
     // which case only values are checked, and the start head extended.
@@ -74,16 +84,35 @@ fn match_internal(
         }
     } else {
         let current_node = &matching_path[0];
+
+        if current_node == &PatternNode::Recursive() {
+            let next_nodes = &matching_path[1..];
+            result.extend(match_internal(
+                json,
+                next_nodes,
+                matching_val,
+                path.clone(),
+                or,
+                start_head,
+            ));
+        }
+
         match json {
             Value::Array(json_array) => {
                 for (i, v) in json_array.iter().enumerate() {
                     if let PatternNode::Index(index) = current_node {
-                        if Some(i) == *index || index.is_none() {
-                            extend_match(&mut result, v, MatchNode::new_index(i, true));
+                        if index.matches(i, json_array.len()) {
+                            let node = MatchNode::new_index(i, true);
+                            extend_match(&mut result, v, node);
                         }
                     }
+                    if current_node == &PatternNode::Recursive() {
+                        let node = MatchNode::new_index(i, true);
+                        extend_match_recursive(&mut result, v, node);
+                    }
                     if start_head {
-                        extend_start_head(&mut result, v, MatchNode::new_index(i, false));
+                        let node = MatchNode::new_index(i, false);
+                        extend_start_head(&mut result, v, node);
                     }
                 }
             }
@@ -91,8 +120,13 @@ fn match_internal(
                 for (k, v) in map.iter() {
                     if let PatternNode::Key(matching_key) = current_node {
                         if wildcard_match(k, matching_key) {
-                            extend_match(&mut result, v, MatchNode::new_key(k.to_string(), true));
+                            let node = MatchNode::new_key(k.to_string(), true);
+                            extend_match(&mut result, v, node);
                         }
+                    }
+                    if current_node == &PatternNode::Recursive() {
+                        let node = MatchNode::new_key(k.to_string(), true);
+                        extend_match_recursive(&mut result, v, node);
                     }
                     if start_head {
                         extend_start_head(&mut result, v, MatchNode::new_key(k.to_string(), false));
@@ -116,7 +150,7 @@ pub fn match_pattern(json: &Value, pattern: &Pattern) -> Vec<Vec<MatchNode>> {
         pattern.value.as_ref(),
         vec![],
         pattern.or,
-        true,
+        !pattern.start_at_root,
     );
     matches.dedup();
     matches
@@ -264,4 +298,126 @@ pub mod tests {
             ]]
         )
     }
+
+    #[test]
+    fn start_at_root() {
+        let pattern = Pattern::parse("$.a").unwrap();
+
+        let json = json!({ "a": 1, "b": { "a": 2}});
+
+        let result = match_pattern(&json, &pattern);
+
+        assert_eq!(
+            result,
+            vec![vec![MatchNode::new_key("a".to_string(), true)]]
+        );
+    }
+
+    #[test]
+    fn test_recursive() {
+        let pattern = Pattern::parse(".a..d").unwrap();
+
+        let json = json!({
+            "a": {
+                "b": {
+                    "c": {
+                        "d": 42
+                    }
+                },
+                "d": 100
+            }
+        });
+
+        let result = match_pattern(&json, &pattern);
+
+        assert_eq!(
+            result,
+            vec![
+                vec![
+                    MatchNode::new_key("a".to_string(), true),
+                    MatchNode::new_key("d".to_string(), true)
+                ],
+                vec![
+                    MatchNode::new_key("a".to_string(), true),
+                    MatchNode::new_key("b".to_string(), true),
+                    MatchNode::new_key("c".to_string(), true),
+                    MatchNode::new_key("d".to_string(), true)
+                ],
+            ]
+        );
+    }
+
+    #[test]
+    fn test_index_list() {
+        let pattern = Pattern::parse(".[0,2]").unwrap();
+
+        let json = json!([0, 1, 2, 3, 4]);
+
+        let result = match_pattern(&json, &pattern);
+        assert_eq!(
+            result,
+            vec![vec![
+                MatchNode::new_index(0, true),
+            ], vec![
+                MatchNode::new_index(2, true)
+            ]]
+        );
+    }
+
+    #[test]
+    fn test_index_range() {
+        let pattern = Pattern::parse(".[1:3]").unwrap();
+
+        let json = json!([0, 1, 2, 3, 4]);
+
+        let result = match_pattern(&json, &pattern);
+
+        assert_eq!(
+            result,
+            vec![vec![
+                MatchNode::new_index(1, true),
+            ], vec![
+                MatchNode::new_index(2, true)
+            ]]
+        );
+    }
+
+    #[test]
+    fn test_index_range_last() {
+        let pattern = Pattern::parse(".[2:]").unwrap();
+
+        let json = json!([0, 1, 2, 3, 4]);
+
+        let result = match_pattern(&json, &pattern);
+
+        assert_eq!(
+            result,
+            vec![vec![
+                MatchNode::new_index(2, true),
+            ], vec![
+                MatchNode::new_index(3, true),
+            ], vec![
+                MatchNode::new_index(4, true)
+            ]]
+        );
+    }
+
+    #[test]
+    fn test_index_last_n() {
+        let pattern = Pattern::parse(".[-2:]").unwrap();
+
+        let json = json!([0, 1, 2, 3, 4]);
+
+        let result = match_pattern(&json, &pattern);
+
+        assert_eq!(
+            result,
+            vec![vec![
+                MatchNode::new_index(3, true),
+            ], vec![
+                MatchNode::new_index(4, true)
+            ]]
+        );
+    }
+
 }

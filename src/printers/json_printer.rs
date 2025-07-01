@@ -15,7 +15,6 @@ pub fn print<W: Write>(value: Value, mut matches: Vec<Vec<MatchNode>>, context: 
             for m in matches.iter_mut() {
                 add_matches(&mut printer_node, &value, m.clone(), context);
             }
-            // sort_matches(&mut matches);
             print_node(None, &printer_node, 0, writer);
             writeln!(writer).unwrap();
         }
