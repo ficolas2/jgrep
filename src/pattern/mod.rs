@@ -5,6 +5,7 @@ use pattern_node::{IndexPattern, PatternNode};
 use crate::{errors::parsing_error::ParsingError, utils::string_utils};
 
 pub mod pattern_node;
+pub mod tokenizer;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Pattern {
