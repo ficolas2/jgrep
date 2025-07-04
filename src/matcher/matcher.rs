@@ -1,4 +1,3 @@
-use match_node::MatchNode;
 use serde_json::Value;
 
 use crate::{
@@ -6,7 +5,8 @@ use crate::{
     utils::string_utils::wildcard_match,
 };
 
-pub mod match_node;
+use super::match_node::MatchNode;
+
 
 fn match_value(json: &Value, matching_value: &str) -> bool {
     match json {
@@ -160,9 +160,7 @@ pub fn match_pattern(json: &Value, pattern: &Pattern) -> Vec<Vec<MatchNode>> {
 pub mod tests {
     use serde_json::json;
 
-    use crate::{
-        matcher::{match_pattern, MatchNode}, pattern::parser,
-    };
+    use crate::{matcher::{match_node::MatchNode, matcher::match_pattern}, pattern::parser};
 
     #[test]
     fn test_complete_path() {

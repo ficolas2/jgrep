@@ -4,11 +4,15 @@ use std::process::exit;
 use args::Args;
 use clap::ValueEnum;
 use clap::Parser;
+use matcher::matcher::match_pattern;
 use pattern::parser;
 use pattern::pattern::Pattern;
 
 mod args;
-mod matcher;
+pub mod matcher {
+    pub mod matcher;
+    pub mod match_node;
+}
 pub mod pattern {
     pub mod pattern_node;
     pub mod tokenizer;
@@ -45,7 +49,7 @@ fn process_complete_json(content: &str, printer: &PrinterType, context: usize, p
         exit(3);
     });
 
-    let matches = matcher::match_pattern(&json, pattern);
+    let matches = match_pattern(&json, pattern);
 
     match printer {
         PrinterType::Path => {
