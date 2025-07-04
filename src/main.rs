@@ -117,8 +117,8 @@ fn main() {
     let pattern = Pattern::parse(&args.pattern);
     let pattern = match pattern {
         Ok(p) => p,
-        Err(_) => {
-            eprintln!("Invalid JSON");
+        Err(e) => {
+            eprintln!("{}", e);
             exit(3);
         }
     };
