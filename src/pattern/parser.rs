@@ -7,9 +7,7 @@ use crate::{
 };
 
 use super::{
-    pattern_node::PatternNode,
-    tokenizer::{tokenize, BracketToken},
-    Pattern,
+    pattern::Pattern, pattern_node::PatternNode, tokenizer::{tokenize, BracketToken}
 };
 
 pub fn parse(pattern_str: &str) -> Result<Pattern, ParsingError> {

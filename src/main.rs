@@ -4,11 +4,17 @@ use std::process::exit;
 use args::Args;
 use clap::ValueEnum;
 use clap::Parser;
-use pattern::Pattern;
+use pattern::parser;
+use pattern::pattern::Pattern;
 
 mod args;
 mod matcher;
-mod pattern;
+pub mod pattern {
+    pub mod pattern_node;
+    pub mod tokenizer;
+    pub mod parser;
+    pub mod pattern;
+}
 
 pub mod utils {
     pub mod string_utils;
@@ -114,7 +120,7 @@ fn main() {
     let args = Args::parse();
 
     // Parse pattern
-    let pattern = Pattern::parse(&args.pattern);
+    let pattern = parser::parse(&args.pattern);
     let pattern = match pattern {
         Ok(p) => p,
         Err(e) => {

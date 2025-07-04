@@ -2,7 +2,7 @@ use match_node::MatchNode;
 use serde_json::Value;
 
 use crate::{
-    pattern::{pattern_node::PatternNode, Pattern},
+    pattern::{pattern::Pattern, pattern_node::PatternNode},
     utils::string_utils::wildcard_match,
 };
 
@@ -161,13 +161,12 @@ pub mod tests {
     use serde_json::json;
 
     use crate::{
-        matcher::{match_pattern, MatchNode},
-        pattern::Pattern,
+        matcher::{match_pattern, MatchNode}, pattern::parser,
     };
 
     #[test]
     fn test_complete_path() {
-        let pattern = Pattern::parse(".a.b.c").unwrap();
+        let pattern = parser::parse(".a.b.c").unwrap();
 
         let json = json!({ "a": { "b": { "c": 42 } } });
 
@@ -185,7 +184,7 @@ pub mod tests {
 
     #[test]
     fn test_partial_path() {
-        let pattern = Pattern::parse(".b.c").unwrap();
+        let pattern = parser::parse(".b.c").unwrap();
 
         let json = json!({ "a": { "b": { "c": 42 } } });
 
@@ -203,7 +202,7 @@ pub mod tests {
 
     #[test]
     fn test_wildcard_path() {
-        let pattern = Pattern::parse(".i*m.c").unwrap();
+        let pattern = parser::parse(".i*m.c").unwrap();
 
         let json = json!({ "a": { "item": { "c": 42 } } });
 
@@ -221,7 +220,7 @@ pub mod tests {
 
     #[test]
     fn test_value_null() {
-        let pattern = Pattern::parse(": null").unwrap();
+        let pattern = parser::parse(": null").unwrap();
 
         let json = json!({"a": "null"});
 
@@ -235,8 +234,8 @@ pub mod tests {
 
     #[test]
     fn test_value_bool() {
-        let true_pattern = Pattern::parse(": true").unwrap();
-        let false_pattern = Pattern::parse(": false").unwrap();
+        let true_pattern = parser::parse(": true").unwrap();
+        let false_pattern = parser::parse(": false").unwrap();
 
         let json = json!({"a": true, "b": false});
 
@@ -255,7 +254,7 @@ pub mod tests {
 
     #[test]
     fn test_value_number() {
-        let pattern = Pattern::parse(": 42").unwrap();
+        let pattern = parser::parse(": 42").unwrap();
 
         let json = json!({"a": 42});
 
@@ -269,7 +268,7 @@ pub mod tests {
 
     #[test]
     fn test_value_string() {
-        let pattern = Pattern::parse(": hello").unwrap();
+        let pattern = parser::parse(": hello").unwrap();
 
         let json = json!({"a": "hello"});
 
@@ -283,7 +282,7 @@ pub mod tests {
 
     #[test]
     fn test_value_and_path() {
-        let pattern = Pattern::parse(".a.b.c: 42").unwrap();
+        let pattern = parser::parse(".a.b.c: 42").unwrap();
 
         let json = json!({ "a": { "b": { "c": 42 } } });
 
@@ -301,7 +300,7 @@ pub mod tests {
 
     #[test]
     fn start_at_root() {
-        let pattern = Pattern::parse("$.a").unwrap();
+        let pattern = parser::parse("$.a").unwrap();
 
         let json = json!({ "a": 1, "b": { "a": 2}});
 
@@ -315,7 +314,7 @@ pub mod tests {
 
     #[test]
     fn test_recursive() {
-        let pattern = Pattern::parse(".a..d").unwrap();
+        let pattern = parser::parse(".a..d").unwrap();
 
         let json = json!({
             "a": {
@@ -349,7 +348,7 @@ pub mod tests {
 
     #[test]
     fn test_index_list() {
-        let pattern = Pattern::parse(".[0,2]").unwrap();
+        let pattern = parser::parse(".[0,2]").unwrap();
 
         let json = json!([0, 1, 2, 3, 4]);
 
@@ -366,7 +365,7 @@ pub mod tests {
 
     #[test]
     fn test_index_range() {
-        let pattern = Pattern::parse(".[1:3]").unwrap();
+        let pattern = parser::parse(".[1:3]").unwrap();
 
         let json = json!([0, 1, 2, 3, 4]);
 
@@ -384,7 +383,7 @@ pub mod tests {
 
     #[test]
     fn test_index_range_last() {
-        let pattern = Pattern::parse(".[2:]").unwrap();
+        let pattern = parser::parse(".[2:]").unwrap();
 
         let json = json!([0, 1, 2, 3, 4]);
 
@@ -404,7 +403,7 @@ pub mod tests {
 
     #[test]
     fn test_index_last_n() {
-        let pattern = Pattern::parse(".[-2:]").unwrap();
+        let pattern = parser::parse(".[-2:]").unwrap();
 
         let json = json!([0, 1, 2, 3, 4]);
 
