@@ -4,9 +4,10 @@ use std::process::exit;
 use args::Args;
 use clap::ValueEnum;
 use clap::Parser;
-use matcher::matcher::match_pattern;
+use matcher::matcher::match_pattern_with_case;
 use pattern::parser;
 use pattern::pattern::Pattern;
+use utils::string_utils::CaseSensitivity;
 
 mod args;
 pub mod matcher {
@@ -43,13 +44,19 @@ enum PrinterType {
     Only,
 }
 
-fn process_complete_json(content: &str, printer: &PrinterType, context: usize, pattern: &Pattern) {
+fn process_complete_json(
+    content: &str,
+    printer: &PrinterType,
+    context: usize,
+    pattern: &Pattern,
+    case_sensitivity: CaseSensitivity,
+) {
     let json = serde_json::from_str::<serde_json::Value>(content).unwrap_or_else(|_| {
         eprintln!("Invalid JSON");
         exit(3);
     });
 
-    let matches = match_pattern(&json, pattern);
+    let matches = match_pattern_with_case(&json, pattern, case_sensitivity);
 
     match printer {
         PrinterType::Path => {
@@ -64,7 +71,13 @@ fn process_complete_json(content: &str, printer: &PrinterType, context: usize, p
     }
 }
 
-fn process_file(path: &str, printer: PrinterType, context: usize, pattern: &Pattern) {
+fn process_file(
+    path: &str,
+    printer: PrinterType,
+    context: usize,
+    pattern: &Pattern,
+    case_sensitivity: CaseSensitivity,
+) {
     let mut content = String::new();
     let file = std::fs::File::open(path).unwrap_or_else(|_| {
         eprintln!("{}: No such file or directory", path);
@@ -73,10 +86,15 @@ fn process_file(path: &str, printer: PrinterType, context: usize, pattern: &Patt
     let mut reader = std::io::BufReader::new(file);
     reader.read_to_string(&mut content).unwrap();
 
-    process_complete_json(&content, &printer, context, pattern);
+    process_complete_json(&content, &printer, context, pattern, case_sensitivity);
 }
 
-fn stream_process(printer: PrinterType, context: usize, pattern: &Pattern) {
+fn stream_process(
+    printer: PrinterType,
+    context: usize,
+    pattern: &Pattern,
+    case_sensitivity: CaseSensitivity,
+) {
     let stdin = std::io::stdin();
     let mut buffer = String::new();
 
@@ -108,7 +126,7 @@ fn stream_process(printer: PrinterType, context: usize, pattern: &Pattern) {
 
             if depth == 0 {
                 buffer.push_str(&line[0..=i]);
-                process_complete_json(&buffer, &printer, context, pattern);
+                process_complete_json(&buffer, &printer, context, pattern, case_sensitivity);
                 buffer.clear();
                 start = None;
                 line = &line[i + 1..];
@@ -135,12 +153,25 @@ fn main() {
 
     let context = args.context.unwrap_or(0);
     let printer = get_printer(&args);
+    let case_sensitivity = resolve_case_sensitivity(&args, &args.pattern);
 
     if let Some(path) = args.path {
-        process_file(&path, printer, context, &pattern);
+        process_file(&path, printer, context, &pattern, case_sensitivity);
     } else {
-        stream_process(printer, context, &pattern);
+        stream_process(printer, context, &pattern, case_sensitivity);
     };
+}
+
+fn resolve_case_sensitivity(args: &Args, pattern: &str) -> CaseSensitivity {
+    if args.ignore_case {
+        CaseSensitivity::Insensitive
+    } else if args.case_sensitive {
+        CaseSensitivity::Sensitive
+    } else if pattern.chars().any(char::is_uppercase) {
+        CaseSensitivity::Sensitive
+    } else {
+        CaseSensitivity::Insensitive
+    }
 }
 
 // Requires that the printer flags are part of the same Clap::ArgGroup

@@ -2,18 +2,18 @@ use serde_json::Value;
 
 use crate::{
     pattern::{pattern::Pattern, pattern_node::PatternNode},
-    utils::string_utils::wildcard_match,
+    utils::string_utils::{wildcard_match_with_case, CaseSensitivity},
 };
 
 use super::match_node::MatchNode;
 
 
-fn match_value(json: &Value, matching_value: &str) -> bool {
+fn match_value(json: &Value, matching_value: &str, case_sensitivity: CaseSensitivity) -> bool {
     match json {
-        Value::Null => wildcard_match("null", matching_value),
-        Value::Bool(b) => wildcard_match(&bool::to_string(b), matching_value),
-        Value::Number(n) => wildcard_match(n.as_str(), matching_value),
-        Value::String(s) => wildcard_match(s, matching_value),
+        Value::Null => wildcard_match_with_case("null", matching_value, case_sensitivity),
+        Value::Bool(b) => wildcard_match_with_case(&bool::to_string(b), matching_value, case_sensitivity),
+        Value::Number(n) => wildcard_match_with_case(n.as_str(), matching_value, case_sensitivity),
+        Value::String(s) => wildcard_match_with_case(s, matching_value, case_sensitivity),
         _ => false, // TODO also match objects and arrays?
     }
 }
@@ -30,6 +30,7 @@ fn match_internal(
     path: Vec<MatchNode>,
     or: bool,
     start_head: bool,
+    case_sensitivity: CaseSensitivity,
 ) -> Vec<Vec<MatchNode>> {
     let mut result: Vec<Vec<MatchNode>> = Vec::new();
 
@@ -39,7 +40,7 @@ fn match_internal(
     let extend_start_head = |result: &mut Vec<Vec<MatchNode>>, v: &Value, match_node: MatchNode| {
         let mut next_path = path.clone();
         next_path.push(match_node);
-        let head_matches = match_internal(v, matching_path, matching_val, next_path, or, true);
+        let head_matches = match_internal(v, matching_path, matching_val, next_path, or, true, case_sensitivity);
         result.extend(head_matches);
     };
 
@@ -50,7 +51,7 @@ fn match_internal(
         let next_nodes = &matching_path[1..];
         let mut next_path = path.clone();
         next_path.push(match_node);
-        let matches = match_internal(v, next_nodes, matching_val, next_path, or, false);
+        let matches = match_internal(v, next_nodes, matching_val, next_path, or, false, case_sensitivity);
         result.extend(matches);
     };
 
@@ -60,7 +61,7 @@ fn match_internal(
         |result: &mut Vec<Vec<MatchNode>>, v: &Value, match_node: MatchNode| {
             let mut next_path = path.clone();
             next_path.push(match_node);
-            let matches = match_internal(v, matching_path, matching_val, next_path, or, false);
+            let matches = match_internal(v, matching_path, matching_val, next_path, or, false, case_sensitivity);
             result.extend(matches);
         };
 
@@ -68,7 +69,7 @@ fn match_internal(
     // matched, and both the start and the match head extended, or the matching path is empty, in
     // which case only values are checked, and the start head extended.
     if matching_path.is_empty() {
-        if or || matching_val.map(|m| match_value(json, m)).unwrap_or(true) {
+        if or || matching_val.map(|m| match_value(json, m, case_sensitivity)).unwrap_or(true) {
             result.push(path.clone());
         }
         if start_head {
@@ -94,6 +95,7 @@ fn match_internal(
                 path.clone(),
                 or,
                 start_head,
+                case_sensitivity,
             ));
         }
 
@@ -119,7 +121,7 @@ fn match_internal(
             Value::Object(map) => {
                 for (k, v) in map.iter() {
                     if let PatternNode::Key(matching_key) = current_node {
-                        if wildcard_match(k, matching_key) {
+                        if wildcard_match_with_case(k, matching_key, case_sensitivity) {
                             let node = MatchNode::new_key(k.to_string(), true);
                             extend_match(&mut result, v, node);
                         }
@@ -134,7 +136,7 @@ fn match_internal(
                 }
             }
             _ => {
-                if or && matching_val.map(|m| match_value(json, m)).unwrap_or(false) {
+                if or && matching_val.map(|m| match_value(json, m, case_sensitivity)).unwrap_or(false) {
                     result.push(path);
                 }
             }
@@ -144,6 +146,14 @@ fn match_internal(
 }
 
 pub fn match_pattern(json: &Value, pattern: &Pattern) -> Vec<Vec<MatchNode>> {
+    match_pattern_with_case(json, pattern, CaseSensitivity::Sensitive)
+}
+
+pub fn match_pattern_with_case(
+    json: &Value,
+    pattern: &Pattern,
+    case_sensitivity: CaseSensitivity,
+) -> Vec<Vec<MatchNode>> {
     let mut matches = match_internal(
         json,
         &pattern.path,
@@ -151,6 +161,7 @@ pub fn match_pattern(json: &Value, pattern: &Pattern) -> Vec<Vec<MatchNode>> {
         vec![],
         pattern.or,
         !pattern.start_at_root,
+        case_sensitivity,
     );
     matches.dedup();
     matches
@@ -160,7 +171,30 @@ pub fn match_pattern(json: &Value, pattern: &Pattern) -> Vec<Vec<MatchNode>> {
 pub mod tests {
     use serde_json::json;
 
-    use crate::{matcher::{match_node::MatchNode, matcher::match_pattern}, pattern::parser};
+    use crate::{matcher::{match_node::MatchNode, matcher::{match_pattern, match_pattern_with_case}}, pattern::parser, utils::string_utils::CaseSensitivity};
+
+    #[test]
+    fn test_smart_case_matches_lowercase_pattern_case_insensitively() {
+        let pattern = parser::parse(".name").unwrap();
+        let json = json!({ "Name": "Alice" });
+
+        let result = match_pattern_with_case(&json, &pattern, CaseSensitivity::Smart);
+
+        assert_eq!(
+            result,
+            vec![vec![MatchNode::new_key("Name".to_string(), true)]]
+        );
+    }
+
+    #[test]
+    fn test_smart_case_keeps_mixed_case_pattern_case_sensitive() {
+        let pattern = parser::parse(".Name").unwrap();
+        let json = json!({ "name": "Alice" });
+
+        let result = match_pattern_with_case(&json, &pattern, CaseSensitivity::Smart);
+
+        assert!(result.is_empty());
+    }
 
     #[test]
     fn test_complete_path() {

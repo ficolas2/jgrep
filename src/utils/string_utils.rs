@@ -1,12 +1,41 @@
 use std::{iter::Peekable, str::Chars};
 
-pub fn wildcard_match_internal(mut haystack: Chars, mut needle: Peekable<Chars>) -> bool {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CaseSensitivity {
+    Smart,
+    Sensitive,
+    Insensitive,
+}
+
+impl CaseSensitivity {
+    pub fn should_ignore_case(self, pattern: &str) -> bool {
+        match self {
+            Self::Insensitive => true,
+            Self::Sensitive => false,
+            Self::Smart => !pattern.chars().any(char::is_uppercase),
+        }
+    }
+}
+
+fn chars_match(left: char, right: char, ignore_case: bool) -> bool {
+    if ignore_case {
+        left.to_lowercase().eq(right.to_lowercase())
+    } else {
+        left == right
+    }
+}
+
+fn wildcard_match_internal(
+    mut haystack: Chars,
+    mut needle: Peekable<Chars>,
+    ignore_case: bool,
+) -> bool {
     loop {
         match needle.peek() {
             Some('*') => {
                 let mut next_haystack = haystack.clone();
                 let c = next_haystack.next();
-                if c.is_some() && wildcard_match_internal(next_haystack, needle.clone()) {
+                if c.is_some() && wildcard_match_internal(next_haystack, needle.clone(), ignore_case) {
                     return true;
                 }
                 needle.next();
@@ -16,7 +45,8 @@ pub fn wildcard_match_internal(mut haystack: Chars, mut needle: Peekable<Chars>)
                 haystack.next();
             }
             Some(c) => {
-                if Some(*c) == haystack.next() {
+                let next = haystack.next();
+                if next.map(|value| chars_match(value, *c, ignore_case)).unwrap_or(false) {
                     needle.next();
                 } else {
                     return false;
@@ -30,9 +60,18 @@ pub fn wildcard_match_internal(mut haystack: Chars, mut needle: Peekable<Chars>)
 }
 
 pub fn wildcard_match(haystack: &str, needle: &str) -> bool {
+    wildcard_match_with_case(haystack, needle, CaseSensitivity::Sensitive)
+}
+
+pub fn wildcard_match_with_case(
+    haystack: &str,
+    needle: &str,
+    case_sensitivity: CaseSensitivity,
+) -> bool {
+    let ignore_case = case_sensitivity.should_ignore_case(needle);
     let haystack_chars = haystack.chars();
     let needle_chars = needle.chars().peekable();
-    wildcard_match_internal(haystack_chars, needle_chars)
+    wildcard_match_internal(haystack_chars, needle_chars, ignore_case)
 }
 
 #[cfg(test)]
