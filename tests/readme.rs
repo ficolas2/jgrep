@@ -148,6 +148,51 @@ fn flags_only() {
 }
 
 #[test]
+fn flags_raw_only() {
+    let mut cmd = Command::cargo_bin("jgrep").unwrap();
+    cmd.arg(".name");
+    cmd.arg("-r");
+    cmd.arg("-o");
+    cmd.write_stdin(indoc!(
+        r#"
+        {"name":"Jane","verified":true}
+    "#
+    ));
+
+    cmd.assert().code(0).stdout("Jane\n");
+}
+
+#[test]
+fn flags_raw_path() {
+    let mut cmd = Command::cargo_bin("jgrep").unwrap();
+    cmd.arg(".name");
+    cmd.arg("-r");
+    cmd.arg("-P");
+    cmd.write_stdin(indoc!(
+        r#"
+        {"name":"Jane","verified":true}
+    "#
+    ));
+
+    cmd.assert().code(0).stdout(".name: Jane\n");
+}
+
+#[test]
+fn flags_raw_with_json_printer_fails() {
+    let mut cmd = Command::cargo_bin("jgrep").unwrap();
+    cmd.arg(".name");
+    cmd.arg("-r");
+    cmd.arg("-j");
+    cmd.write_stdin(indoc!(
+        r#"
+        {"name":"Jane","verified":true}
+    "#
+    ));
+
+    cmd.assert().code(3);
+}
+
+#[test]
 fn context() {
     let out = ".items[1].meta.author: {\"name\":\"Jane\",\"verified\":true}\n";
 

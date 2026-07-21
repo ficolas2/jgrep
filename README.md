@@ -15,6 +15,7 @@ If you want to make suggestions, discussion is welcomed in the issues
 - [Usage](#Usage)
   - [Query language](#Query-language)
   - [Flags](#Flags)
+    - [Displaying only the match](#displaying-only-the-match)
     - [Displaying JSON instead of the path](#Displaying-JSON-instead-of-the-path)
     - [Context](#Context)
 

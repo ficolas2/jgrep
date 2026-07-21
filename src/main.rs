@@ -26,6 +26,7 @@ pub mod utils {
 
 pub mod printers {
     pub mod json_printer;
+    pub mod output;
     pub mod path_printer;
     pub mod only_printer;
 
@@ -43,7 +44,7 @@ enum PrinterType {
     Only,
 }
 
-fn process_complete_json(content: &str, printer: &PrinterType, context: usize, pattern: &Pattern) {
+fn process_complete_json(content: &str, printer: &PrinterType, context: usize, raw: bool, pattern: &Pattern) {
     let json = serde_json::from_str::<serde_json::Value>(content).unwrap_or_else(|_| {
         eprintln!("Invalid JSON");
         exit(3);
@@ -53,18 +54,18 @@ fn process_complete_json(content: &str, printer: &PrinterType, context: usize, p
 
     match printer {
         PrinterType::Path => {
-            printers::path_printer::print(json, matches, context, std::io::stdout())
+            printers::path_printer::print(json, matches, context, raw, std::io::stdout())
         }
         PrinterType::Json => {
             printers::json_printer::print(json, matches, context, &mut std::io::stdout())
         }
         PrinterType::Only => {
-            printers::only_printer::print(json, matches, context, std::io::stdout())
+            printers::only_printer::print(json, matches, context, raw, std::io::stdout())
         }
     }
 }
 
-fn process_file(path: &str, printer: PrinterType, context: usize, pattern: &Pattern) {
+fn process_file(path: &str, printer: PrinterType, context: usize, raw: bool, pattern: &Pattern) {
     let mut content = String::new();
     let file = std::fs::File::open(path).unwrap_or_else(|_| {
         eprintln!("{}: No such file or directory", path);
@@ -73,10 +74,10 @@ fn process_file(path: &str, printer: PrinterType, context: usize, pattern: &Patt
     let mut reader = std::io::BufReader::new(file);
     reader.read_to_string(&mut content).unwrap();
 
-    process_complete_json(&content, &printer, context, pattern);
+    process_complete_json(&content, &printer, context, raw, pattern);
 }
 
-fn stream_process(printer: PrinterType, context: usize, pattern: &Pattern) {
+fn stream_process(printer: PrinterType, context: usize, raw: bool, pattern: &Pattern) {
     let stdin = std::io::stdin();
     let mut buffer = String::new();
 
@@ -108,7 +109,7 @@ fn stream_process(printer: PrinterType, context: usize, pattern: &Pattern) {
 
             if depth == 0 {
                 buffer.push_str(&line[0..=i]);
-                process_complete_json(&buffer, &printer, context, pattern);
+                process_complete_json(&buffer, &printer, context, raw, pattern);
                 buffer.clear();
                 start = None;
                 line = &line[i + 1..];
@@ -120,8 +121,22 @@ fn stream_process(printer: PrinterType, context: usize, pattern: &Pattern) {
     }
 }
 
+fn validate_args(args: &Args) -> Result<(), String> {
+    let printer = get_printer(args);
+    if args.raw && printer == PrinterType::Json {
+        return Err("-r/--raw cannot be used with the json printer".into());
+    }
+
+    Ok(())
+}
+
 fn main() {
     let args = Args::parse();
+
+    if let Err(err) = validate_args(&args) {
+        eprintln!("{}", err);
+        exit(3);
+    }
 
     // Parse pattern
     let pattern = parser::parse(&args.pattern);
@@ -135,11 +150,12 @@ fn main() {
 
     let context = args.context.unwrap_or(0);
     let printer = get_printer(&args);
+    let raw = args.raw;
 
     if let Some(path) = args.path {
-        process_file(&path, printer, context, &pattern);
+        process_file(&path, printer, context, raw, &pattern);
     } else {
-        stream_process(printer, context, &pattern);
+        stream_process(printer, context, raw, &pattern);
     };
 }
 

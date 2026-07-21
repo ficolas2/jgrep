@@ -4,8 +4,9 @@ use serde_json::Value;
 
 use crate::matcher::match_node::MatchNode;
 
+use super::output::format_value;
 
-pub fn print<W: Write>(value: Value, matches: Vec<Vec<MatchNode>>, context: usize, mut writer: W) {
+pub fn print<W: Write>(value: Value, matches: Vec<Vec<MatchNode>>, context: usize, raw: bool, mut writer: W) {
     for path in matches {
         let mut value_to_print = &value;
         let mut path = path.clone();
@@ -23,7 +24,8 @@ pub fn print<W: Write>(value: Value, matches: Vec<Vec<MatchNode>>, context: usiz
                 },
             }
         }
-        write!(writer, "{}", value_to_print).unwrap();
+        let formatted_value = format_value(value_to_print, raw);
+        write!(writer, "{}", formatted_value).unwrap();
         writeln!(writer).unwrap();
     }
 }
@@ -57,7 +59,7 @@ mod tests {
         ];
 
         let mut output = Vec::new();
-        super::print(value, matches, 0, &mut output);
+        super::print(value, matches, 0, false, &mut output);
         let output = String::from_utf8(output).unwrap();
 
         assert_eq!(output, "0\n{\"patatas\":\"felices\"}\n")

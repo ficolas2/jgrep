@@ -38,5 +38,9 @@ pub struct Args {
     #[clap(short, long)]
     pub json: bool,
 
+    /// Output scalar values as raw text when possible (number, boolean, single line string).
+    /// Works with the "path" and "only" printers.
+    #[clap(short = 'r', long = "raw")]
+    pub raw: bool,
 }
 
