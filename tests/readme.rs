@@ -163,6 +163,22 @@ fn flags_raw_only() {
 }
 
 #[test]
+fn flags_raw_multiline_only() {
+    let mut cmd = Command::cargo_bin("jgrep").unwrap();
+    cmd.arg(".message");
+    cmd.arg("-r");
+    cmd.arg("--raw-multiline");
+    cmd.arg("-o");
+    cmd.write_stdin(indoc!(
+        r#"
+        {"message":"line1\nline2"}
+    "#
+    ));
+
+    cmd.assert().code(0).stdout("line1\nline2\n");
+}
+
+#[test]
 fn flags_raw_path() {
     let mut cmd = Command::cargo_bin("jgrep").unwrap();
     cmd.arg(".name");

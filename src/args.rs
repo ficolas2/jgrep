@@ -42,5 +42,9 @@ pub struct Args {
     /// Works with the "path" and "only" printers.
     #[clap(short = 'r', long = "raw")]
     pub raw: bool,
+
+    /// Just like --raw mode but also output multiline strings in raw.
+    #[clap(long = "raw-multiline")]
+    pub raw_multiline: bool,
 }
 

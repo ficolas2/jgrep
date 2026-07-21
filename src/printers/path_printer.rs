@@ -6,7 +6,7 @@ use crate::matcher::match_node::MatchNode;
 
 use super::output::format_value;
 
-pub fn print<W: Write>(value: Value, matches: Vec<Vec<MatchNode>>, context: usize, raw: bool, mut writer: W) {
+pub fn print<W: Write>(value: Value, matches: Vec<Vec<MatchNode>>, context: usize, raw: bool, raw_multiline: bool, mut writer: W) {
     for path in matches {
         let mut value_to_print = &value;
         let mut path = path.clone();
@@ -26,7 +26,7 @@ pub fn print<W: Write>(value: Value, matches: Vec<Vec<MatchNode>>, context: usiz
                 },
             }
         }
-        let formatted_value = format_value(value_to_print, raw);
+        let formatted_value = format_value(value_to_print, raw, raw_multiline);
         write!(writer, ": {}", formatted_value).unwrap();
         writeln!(writer).unwrap();
     }
@@ -61,7 +61,7 @@ mod test {
         ];
 
         let mut output = Vec::new();
-        super::print(value, matches, 0, false, &mut output);
+        super::print(value, matches, 0, false, false, &mut output);
         let output = String::from_utf8(output).unwrap();
 
         assert_eq!(output, ".a[0].c: 0\n.a[3][0]: {\"patatas\":\"felices\"}\n")
