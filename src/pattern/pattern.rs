@@ -40,7 +40,7 @@ mod test {
         assert_eq!(
             Pattern {
                 path: vec![],
-                value: Some("true*".to_string()),
+                value: Some("*true*".to_string()),
                 or: false,
                 start_at_root: false,
             },
@@ -57,9 +57,9 @@ mod test {
                 path: vec![
                     PatternNode::Key("a".to_string()),
                     PatternNode::Key("b".to_string()),
-                    PatternNode::Key("c".to_string()),
+                    PatternNode::Key("c*".to_string()),
                 ],
-                value: Some("true*".to_string()),
+                value: Some("*true*".to_string()),
                 or: false,
                 start_at_root: false,
             },
@@ -235,7 +235,7 @@ mod test {
 
         assert_eq!(
             Pattern {
-                path: vec![PatternNode::Key("date".to_string())],
+                path: vec![PatternNode::Key("date*".to_string())],
                 value: Some("03/05/2026".to_string()),
                 or: false,
                 start_at_root: false,
@@ -251,8 +251,8 @@ mod test {
 
         assert_eq!(
             Pattern {
-                path: vec![PatternNode::Key("date".to_string())],
-                value: Some("03/05*".to_string()),
+                path: vec![PatternNode::Key("date*".to_string())],
+                value: Some("*03/05*".to_string()),
                 or: false,
                 start_at_root: false,
             },
@@ -274,6 +274,46 @@ mod test {
                 ],
                 value: Some("*a[1:2]*".to_string()),
                 or: true,
+                start_at_root: false,
+            },
+            pattern
+        )
+    }
+
+    // The path and the value get a pair of wildcards each, instead of one pair shared across the
+    // whole pattern. Sharing meant the value of `a.b: c` was `c*`, missing anything that did not
+    // start with a c, and the `b` before the colon got none at all.
+    #[test]
+    fn test_wildcards_on_path_and_value() {
+        let pattern = parser::parse("a.b: c").unwrap();
+
+        assert_eq!(
+            Pattern {
+                path: vec![
+                    PatternNode::Key("*a".to_string()),
+                    PatternNode::Key("b*".to_string()),
+                ],
+                value: Some("*c*".to_string()),
+                or: false,
+                start_at_root: false,
+            },
+            pattern
+        )
+    }
+
+    // Quoted ends are matched exactly, so they get no wildcard
+    #[test]
+    fn test_wildcards_skip_quoted() {
+        let pattern = parser::parse(r#""a".b: "c""#).unwrap();
+
+        assert_eq!(
+            Pattern {
+                path: vec![
+                    PatternNode::Key("a".to_string()),
+                    PatternNode::Key("b*".to_string()),
+                ],
+                value: Some("c".to_string()),
+                or: false,
                 start_at_root: false,
             },
             pattern

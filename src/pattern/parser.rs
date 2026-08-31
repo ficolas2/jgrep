@@ -16,31 +16,17 @@ pub fn parse(pattern_str: &str) -> Result<Pattern, ParsingError> {
     let pattern_str = pattern_str.trim();
     let mut tokens = tokenize(pattern_str)?;
 
-    // Add wildcards to extremes, if they are unquoted idents
-    // TODO this is wrong, should be at extremes of both, value and path
-    match &mut tokens.first_mut() {
-        Some(Token::Text(tc)) if !tc.quoted => {
-            tc.str = format!("*{}", tc.str);
-        }
-        _ => {}
-    }
-
-    match &mut tokens.last_mut() {
-        Some(Token::Text(tc) | Token::Value(tc)) if !tc.quoted => {
-            tc.str = format!("{}*", tc.str);
-        }
-        _ => {}
-    }
-
     // The tokenizer stops at the first top level colon, so the value, when there is one, is the
     // last token, with the colon right before it.
-    let (path_tokens, mut value, has_colon) = match tokens.last() {
-        Some(Token::Value(tc)) => (&tokens[..tokens.len() - 2], Some(tc.str.clone()), true),
-        Some(Token::Colon) => (&tokens[..tokens.len() - 1], None, true),
-        _ => (&tokens[..], None, false),
+    let (path_end, value_token, has_colon) = match tokens.last() {
+        Some(Token::Value(tc)) => (tokens.len() - 2, Some(tc), true),
+        Some(Token::Colon) => (tokens.len() - 1, None, true),
+        _ => (tokens.len(), None, false),
     };
+    let mut value = value_token.map(add_value_wildcards);
+    add_path_wildcards(&mut tokens[..path_end]);
 
-    let (path, start_at_root) = parse_path(path_tokens)?;
+    let (path, start_at_root) = parse_path(&tokens[..path_end])?;
 
     // Parse pattern as a value if it doesn't have a `:`, and is not explicitly a path, that is,
     // doesn't start with a `.`, `$`, or `[`
@@ -97,16 +83,39 @@ fn parse_path(tokens: &[Token]) -> Result<(Vec<PatternNode>, bool), ParsingError
     Ok((pattern_vec, start_at_root))
 }
 
+/// Puts a wildcard at each end of the path, so that it matches partially. Quoted ends are matched
+/// exactly, so they are left alone.
+fn add_path_wildcards(tokens: &mut [Token]) {
+    if let Some(Token::Text(tc)) = tokens.first_mut() {
+        if !tc.quoted {
+            tc.str = format!("*{}", tc.str);
+        }
+    }
+
+    if let Some(Token::Text(tc)) = tokens.last_mut() {
+        if !tc.quoted {
+            tc.str = format!("{}*", tc.str);
+        }
+    }
+}
+
+/// Puts a wildcard at each end of the value, so that it matches partially. Quoted values are
+/// matched exactly, so they are left alone.
+///
+/// The value gets its own pair rather than sharing the path's, so that `.a: b` looks for `*b*`
+/// and not for `b*`.
+fn add_value_wildcards(value: &TextContent) -> String {
+    if value.quoted {
+        value.str.clone()
+    } else {
+        format!("*{}*", value.str)
+    }
+}
+
 fn parse_bare_value(pattern_str: &str) -> Result<Option<String>, ParsingError> {
     let chars: Vec<char> = pattern_str.chars().collect();
 
-    Ok(tokenize_value(&chars, 0)?.map(|tc| {
-        if tc.quoted {
-            tc.str
-        } else {
-            format!("*{}*", tc.str)
-        }
-    }))
+    Ok(tokenize_value(&chars, 0)?.as_ref().map(add_value_wildcards))
 }
 
 fn parse_brackets(tokens: &[BracketToken]) -> Result<PatternNode, ParsingError> {
