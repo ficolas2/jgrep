@@ -24,6 +24,24 @@ pub enum BracketToken {
     Comma,
 }
 
+/// Position of the first `target` that a backslash does not escape.
+///
+/// Escapes are left in the string rather than resolved here, and wildcard_match is what turns
+/// `\x` back into a literal x.
+fn find_unescaped(chars: &[char], target: char) -> Option<usize> {
+    let mut i = 0;
+
+    while i < chars.len() {
+        match chars[i] {
+            '\\' => i += 2,
+            c if c == target => return Some(i),
+            _ => i += 1,
+        }
+    }
+
+    None
+}
+
 pub fn tokenize(pattern_str: &str) -> Result<Vec<Token>, ParsingError> {
     const TEXT_STOPS: &[char] = &['.', ':', '['];
     let mut tokens = Vec::new();
@@ -45,7 +63,8 @@ pub fn tokenize(pattern_str: &str) -> Result<Vec<Token>, ParsingError> {
                 if let Some(value) = tokenize_value(&chars[i..], i)? {
                     // Bracket colons were consumed with their brackets and quoted ones are part
                     // of the value, so a colon still left here is a second top level one.
-                    if !value.quoted && value.str.contains(':') {
+                    let value_chars: Vec<char> = value.str.chars().collect();
+                    if !value.quoted && find_unescaped(&value_chars, ':').is_some() {
                         return Err(ParsingError::multiple_colons());
                     }
                     tokens.push(Token::Value(value));
@@ -85,15 +104,13 @@ pub fn tokenize_value(chars: &[char], offset: usize) -> Result<Option<TextConten
         }));
     }
 
-    // Once a value opens with a quote, the last character has to close it, with no quotes in
-    // between. TODO: `\"` should be one of those quotes, but there is no escaping in the query
-    // language yet, here or in parse_quoted.
+    // Once a value opens with a quote, the last character has to close it, with no unescaped
+    // quotes in between.
     let inner = &trimmed[1..];
-    let closed = inner.last() == Some(&'"');
-    let inner = if closed { &inner[..inner.len() - 1] } else { inner };
-    if !closed || inner.contains(&'"') {
+    if find_unescaped(inner, '"') != Some(inner.len().wrapping_sub(1)) {
         return Err(ParsingError::missmatched_quotes(offset + start));
     }
+    let inner = &inner[..inner.len() - 1];
 
     Ok(Some(TextContent {
         str: inner.iter().collect(),
@@ -135,23 +152,18 @@ fn tokenize_inside_bracket(
     return Err(ParsingError::missmatched_brackets(*start_i));
 }
 
-fn parse_quoted(chars: &Vec<char>, start_i: &mut usize) -> Result<TextContent, ParsingError> {
+fn parse_quoted(chars: &[char], start_i: &mut usize) -> Result<TextContent, ParsingError> {
     *start_i += 1;
-    let mut i = *start_i;
 
-    while i < chars.len() {
-        if chars[i] == '"' {
-            let str = chars[*start_i..i].iter().collect();
-            *start_i = i + 1;
-            return Ok(TextContent{
-                str,
-                quoted: true,
-            });
-        }
-        i += 1;
-    }
+    let Some(close) = find_unescaped(&chars[*start_i..], '"') else {
+        return Err(ParsingError::missmatched_quotes(*start_i - 1));
+    };
+    let close = *start_i + close;
 
-    return Err(ParsingError::missmatched_quotes(*start_i - 1));
+    let str = chars[*start_i..close].iter().collect();
+    *start_i = close + 1;
+
+    Ok(TextContent { str, quoted: true })
 }
 
 fn parse_text(
@@ -162,8 +174,9 @@ fn parse_text(
     let mut i = *start_i;
 
     while i < chars.len() && !stop_chars.contains(&chars[i]) {
-        i += 1;
+        i += if chars[i] == '\\' { 2 } else { 1 };
     }
+    let i = i.min(chars.len());
 
     let str: String = chars[*start_i..i].iter().collect();
     *start_i = i;
@@ -193,7 +206,7 @@ mod test {
 
     #[test]
     fn test_parse_quoted() {
-        let chars = r#"ab."a.c"."#.chars().collect();
+        let chars: Vec<char> = r#"ab."a.c"."#.chars().collect();
 
         let mut i = 3;
 
@@ -205,7 +218,7 @@ mod test {
 
     #[test]
     fn test_parse_quoted_missmatched() {
-        let chars = r#"ab."a.c."#.chars().collect();
+        let chars: Vec<char> = r#"ab."a.c."#.chars().collect();
         let mut i = 3;
         let res = parse_quoted(&chars, &mut i);
 
@@ -380,5 +393,67 @@ mod test {
     fn test_tokenize_value_missmatched_quotes() {
         assert_eq!(Err(ParsingError::missmatched_quotes(2)), tokenize(r#": "abc"#));
         assert_eq!(Err(ParsingError::missmatched_quotes(1)), tokenize(r#":"a""b""#));
+    }
+
+    // A backslash keeps the next character from being read as syntax. The escape itself stays in
+    // the string, and wildcard_match is what resolves it.
+    #[test]
+    fn test_tokenize_escaped_quote() {
+        assert_eq!(
+            vec![
+                Token::Dot,
+                Token::Text(TextContent{str: r#"a\"b"#.to_string(), quoted: true}),
+            ],
+            tokenize(r#"."a\"b""#).unwrap(),
+        );
+    }
+
+    #[test]
+    fn test_tokenize_escaped_stops() {
+        assert_eq!(
+            vec![
+                Token::Dot,
+                Token::Text(TextContent{str: r"a\.b\[0\]".to_string(), quoted: false}),
+            ],
+            tokenize(r".a\.b\[0\]").unwrap(),
+        );
+    }
+
+    // An escaped colon is not the one that starts the value, nor a second top level one
+    #[test]
+    fn test_tokenize_escaped_colon() {
+        assert_eq!(
+            vec![
+                Token::Text(TextContent{str: r"a\:b".to_string(), quoted: false}),
+            ],
+            tokenize(r"a\:b").unwrap(),
+        );
+
+        assert_eq!(
+            vec![
+                Token::Dot,
+                Token::Text(TextContent{str: "time".to_string(), quoted: false}),
+                Token::Colon,
+                Token::Value(TextContent{str: r"10\:30".to_string(), quoted: false}),
+            ],
+            tokenize(r".time: 10\:30").unwrap(),
+        );
+    }
+
+    #[test]
+    fn test_tokenize_value_escaped_quote() {
+        assert_eq!(
+            vec![
+                Token::Colon,
+                Token::Value(TextContent{str: r#"a\"b"#.to_string(), quoted: true}),
+            ],
+            tokenize(r#": "a\"b""#).unwrap(),
+        );
+    }
+
+    // An unterminated quote is still an error, the backslash does not close it
+    #[test]
+    fn test_tokenize_escaped_quote_missmatched() {
+        assert_eq!(Err(ParsingError::missmatched_quotes(1)), tokenize(r#"."a\"b"#));
     }
 }
