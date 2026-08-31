@@ -227,4 +227,56 @@ mod test {
             pattern
         )
     }
+
+    // A quoted value is matched exactly, and is free to contain path syntax
+    #[test]
+    fn test_quoted_value() {
+        let pattern = parser::parse(r#".date: "03/05/2026""#).unwrap();
+
+        assert_eq!(
+            Pattern {
+                path: vec![PatternNode::Key("date".to_string())],
+                value: Some("03/05/2026".to_string()),
+                or: false,
+                start_at_root: false,
+            },
+            pattern
+        )
+    }
+
+    // An unquoted one matches partially, so it gets the implicit wildcard
+    #[test]
+    fn test_unquoted_value() {
+        let pattern = parser::parse(".date: 03/05").unwrap();
+
+        assert_eq!(
+            Pattern {
+                path: vec![PatternNode::Key("date".to_string())],
+                value: Some("03/05*".to_string()),
+                or: false,
+                start_at_root: false,
+            },
+            pattern
+        )
+    }
+
+    // A colon inside brackets is not a second top level colon, even when the pattern has no
+    // colon of its own and so doubles as a value
+    #[test]
+    fn test_bare_pattern_with_range() {
+        let pattern = parser::parse("a[1:2]").unwrap();
+
+        assert_eq!(
+            Pattern {
+                path: vec![
+                    PatternNode::Key("*a".to_string()),
+                    PatternNode::Index(IndexPattern::Range(1, Some(2))),
+                ],
+                value: Some("*a[1:2]*".to_string()),
+                or: true,
+                start_at_root: false,
+            },
+            pattern
+        )
+    }
 }

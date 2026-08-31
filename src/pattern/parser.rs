@@ -7,13 +7,17 @@ use crate::{
 };
 
 use super::{
-    pattern::Pattern, pattern_node::PatternNode, tokenizer::{tokenize, BracketToken}
+    pattern::Pattern,
+    pattern_node::PatternNode,
+    tokenizer::{tokenize, tokenize_value, BracketToken},
 };
 
 pub fn parse(pattern_str: &str) -> Result<Pattern, ParsingError> {
-    let mut tokens = tokenize(pattern_str.trim())?;
+    let pattern_str = pattern_str.trim();
+    let mut tokens = tokenize(pattern_str)?;
 
     // Add wildcards to extremes, if they are unquoted idents
+    // TODO this is wrong, should be at extremes of both, value and path
     match &mut tokens.first_mut() {
         Some(Token::Text(tc)) if !tc.quoted => {
             tc.str = format!("*{}", tc.str);
@@ -22,34 +26,31 @@ pub fn parse(pattern_str: &str) -> Result<Pattern, ParsingError> {
     }
 
     match &mut tokens.last_mut() {
-        Some(Token::Text(tc)) if !tc.quoted => {
+        Some(Token::Text(tc) | Token::Value(tc)) if !tc.quoted => {
             tc.str = format!("{}*", tc.str);
         }
         _ => {}
     }
 
-    let colon_indices = token_indices(&tokens, Token::Colon);
-
-    let (path, value, or, start_at_root) = match colon_indices.as_slice() {
-        [] => {
-            let (path, start_at_root) = parse_path(&tokens)?;
-            let value = if start_at_root
-                || matches!(tokens.first(), Some(Token::BracketExpr(_) | &Token::Dot))
-            {
-                None
-            } else {
-                parse_value(&tokens)?
-            };
-            let or = value.is_some();
-            (path, value, or, start_at_root)
-        }
-        [i] => {
-            let (path, start_at_root) = parse_path(&tokens[..*i])?;
-            let value = parse_value(&tokens[i + 1..])?;
-            (path, value, false, start_at_root)
-        }
-        _ => return Err(ParsingError::multiple_colons()),
+    // The tokenizer stops at the first top level colon, so the value, when there is one, is the
+    // last token, with the colon right before it.
+    let (path_tokens, mut value, has_colon) = match tokens.last() {
+        Some(Token::Value(tc)) => (&tokens[..tokens.len() - 2], Some(tc.str.clone()), true),
+        Some(Token::Colon) => (&tokens[..tokens.len() - 1], None, true),
+        _ => (&tokens[..], None, false),
     };
+
+    let (path, start_at_root) = parse_path(path_tokens)?;
+
+    // Parse pattern as a value if it doesn't have a `:`, and is not explicitly a path, that is,
+    // doesn't start with a `.`, `$`, or `[`
+    if !has_colon
+        && !start_at_root
+        && !matches!(tokens.first(), Some(Token::BracketExpr(_) | &Token::Dot))
+    {
+        value = parse_bare_value(pattern_str)?;
+    }
+    let or = !has_colon && value.is_some();
 
     Ok(Pattern {
         path,
@@ -85,50 +86,27 @@ fn parse_path(tokens: &[Token]) -> Result<(Vec<PatternNode>, bool), ParsingError
                     (_, _) => None,
                 }
             }
-            Token::Colon => unreachable!(),
+            Token::Colon | Token::Value(_) => unreachable!(),
         };
 
-        token.map(|t| pattern_vec.push(t));
+        if let Some(t) = token {
+            pattern_vec.push(t)
+        }
     }
 
     Ok((pattern_vec, start_at_root))
 }
 
-fn parse_value(tokens: &[Token]) -> Result<Option<String>, ParsingError> {
-    if tokens.is_empty() {
-        return Ok(None)
-    }
-    // Any amount of spaces before and a quoted string
-    match tokens {
-        [Token::Text(TextContent {
-            str, quoted: false, ..
-        })] => return Ok(Some(str.trim().into())),
+fn parse_bare_value(pattern_str: &str) -> Result<Option<String>, ParsingError> {
+    let chars: Vec<char> = pattern_str.chars().collect();
 
-        [Token::Text(TextContent {
-            str: spaces_str,
-            quoted: false,
-            ..
-        }), Token::Text(TextContent {
-            str, quoted: true, ..
-        })] if spaces_str.chars().all(|c| c == ' ') => return Ok(Some(str.into())),
-        _ => {}
-    }
-
-    // Other
-    let mut result = String::new();
-    for (i, token) in tokens.iter().enumerate() {
-        if i != 0 {
-            result.push_str(&token.get_original_string());
-            continue;
-        }
-        if let Token::Text(TextContent { str, quoted: false }) = token {
-            result.push_str(str.trim());
+    Ok(tokenize_value(&chars, 0)?.map(|tc| {
+        if tc.quoted {
+            tc.str
         } else {
-            result.push_str(&token.get_original_string());
+            format!("*{}*", tc.str)
         }
-    }
-
-    Ok(Some(result))
+    }))
 }
 
 fn parse_brackets(tokens: &[BracketToken]) -> Result<PatternNode, ParsingError> {
@@ -139,7 +117,7 @@ fn parse_brackets(tokens: &[BracketToken]) -> Result<PatternNode, ParsingError> 
     if tokens.is_empty()
         || matches!(
             tokens,
-            [BracketToken::Text(TextContent { str, quoted })] if str == "*" && *quoted == false
+            [BracketToken::Text(TextContent { str, quoted })] if str == "*" && !*quoted
         )
     {
         return Ok(PatternNode::Index(IndexPattern::All));

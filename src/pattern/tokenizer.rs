@@ -9,6 +9,7 @@ pub struct TextContent {
 #[derive(Debug, PartialEq, Eq)]
 pub enum Token {
     Text(TextContent),
+    Value(TextContent),
     BracketExpr(Vec<BracketToken>),
     Dot,
     Colon,
@@ -21,39 +22,6 @@ pub enum BracketToken {
     Int(i32),
     Colon,
     Comma,
-}
-
-impl Token {
-    pub fn get_original_string(&self) -> String {
-        match self {
-            Token::Text(TextContent { str, quoted: true }) => format!("\"{str}\""),
-            Token::Text(TextContent { str, quoted: false }) => str.into(),
-            Token::Dot => ".".into(),
-            Token::Colon => ":".into(),
-            Token::Dollar => "$".into(),
-            Token::BracketExpr(tokens) => {
-                let mut result = String::new();
-                result.push('[');
-                for token in tokens {
-                    result.push_str(&token.get_original_string());
-                }
-                result.push(']');
-                result
-            },
-        }
-    }
-}
-
-impl BracketToken {
-    pub fn get_original_string(&self) -> String {
-        match self {
-            BracketToken::Text(TextContent { str, quoted: true }) => format!("\"{str}\""),
-            BracketToken::Text(TextContent { str, quoted: false }) => str.into(),
-            BracketToken::Int(i) => format!("{}", i),
-            BracketToken::Colon => ":".into(),
-            BracketToken::Comma => ",".into(),
-        }
-    }
 }
 
 pub fn tokenize(pattern_str: &str) -> Result<Vec<Token>, ParsingError> {
@@ -69,9 +37,20 @@ pub fn tokenize(pattern_str: &str) -> Result<Vec<Token>, ParsingError> {
                 i += 1;
                 Token::Dot
             }
+            // Everything after the colon is the value. It is not path syntax, so it is kept
+            // whole instead of being split on `.`, `[` or `"`.
             ':' => {
                 i += 1;
-                Token::Colon
+                tokens.push(Token::Colon);
+                if let Some(value) = tokenize_value(&chars[i..], i)? {
+                    // Bracket colons were consumed with their brackets and quoted ones are part
+                    // of the value, so a colon still left here is a second top level one.
+                    if !value.quoted && value.str.contains(':') {
+                        return Err(ParsingError::multiple_colons());
+                    }
+                    tokens.push(Token::Value(value));
+                }
+                break;
             }
             '$' => {
                 i += 1;
@@ -89,6 +68,37 @@ pub fn tokenize(pattern_str: &str) -> Result<Vec<Token>, ParsingError> {
     }
 
     Ok(tokens)
+}
+
+pub fn tokenize_value(chars: &[char], offset: usize) -> Result<Option<TextContent>, ParsingError> {
+    let Some(start) = chars.iter().position(|c| !c.is_whitespace()) else {
+        return Ok(None);
+    };
+    let end = chars.iter().rposition(|c| !c.is_whitespace()).unwrap() + 1;
+    let trimmed = &chars[start..end];
+
+    // Empty case
+    if trimmed[0] != '"' {
+        return Ok(Some(TextContent {
+            str: trimmed.iter().collect(),
+            quoted: false,
+        }));
+    }
+
+    // Once a value opens with a quote, the last character has to close it, with no quotes in
+    // between. TODO: `\"` should be one of those quotes, but there is no escaping in the query
+    // language yet, here or in parse_quoted.
+    let inner = &trimmed[1..];
+    let closed = inner.last() == Some(&'"');
+    let inner = if closed { &inner[..inner.len() - 1] } else { inner };
+    if !closed || inner.contains(&'"') {
+        return Err(ParsingError::missmatched_quotes(offset + start));
+    }
+
+    Ok(Some(TextContent {
+        str: inner.iter().collect(),
+        quoted: true,
+    }))
 }
 
 fn tokenize_inside_bracket(
@@ -290,9 +300,85 @@ mod test {
                     BracketToken::Int(2)
                 ]),
                 Token::Colon,
-                Token::Text(TextContent{str: "val".to_string(), quoted: false}),
+                Token::Value(TextContent{str: "val".to_string(), quoted: false}),
             ],
             res.unwrap(),
         );
+    }
+
+    #[test]
+    fn test_tokenize_value() {
+        assert_eq!(
+            vec![
+                Token::Dot,
+                Token::Text(TextContent{str: "date".to_string(), quoted: false}),
+                Token::Colon,
+                Token::Value(TextContent{str: "03/05/2026".to_string(), quoted: false}),
+            ],
+            tokenize(".date: 03/05/2026").unwrap(),
+        );
+    }
+
+    // A colon stays syntax, and has to be quoted to be part of a value
+    #[test]
+    fn test_tokenize_value_colon() {
+        assert_eq!(Err(ParsingError::multiple_colons()), tokenize(".time: 10:30"));
+        assert_eq!(Err(ParsingError::multiple_colons()), tokenize("a: b: c"));
+
+        assert_eq!(
+            vec![
+                Token::Dot,
+                Token::Text(TextContent{str: "time".to_string(), quoted: false}),
+                Token::Colon,
+                Token::Value(TextContent{str: "10:30".to_string(), quoted: true}),
+            ],
+            tokenize(r#".time: "10:30""#).unwrap(),
+        );
+    }
+
+    // Range colons are consumed with the brackets, so they never reach the value
+    #[test]
+    fn test_tokenize_value_after_range() {
+        assert_eq!(
+            vec![
+                Token::BracketExpr(vec![
+                    BracketToken::Int(1),
+                    BracketToken::Colon,
+                    BracketToken::Int(2),
+                ]),
+                Token::Colon,
+                Token::Value(TextContent{str: "x".to_string(), quoted: false}),
+            ],
+            tokenize("[1:2]: x").unwrap(),
+        );
+    }
+
+    // The value is not path syntax, so it keeps its own dots and brackets
+    #[test]
+    fn test_tokenize_value_quoted() {
+        assert_eq!(
+            vec![
+                Token::Colon,
+                Token::Value(TextContent{str: "a.b[0]".to_string(), quoted: true}),
+            ],
+            tokenize(r#": "a.b[0]""#).unwrap(),
+        );
+    }
+
+    #[test]
+    fn test_tokenize_value_empty() {
+        assert_eq!(
+            vec![
+                Token::Text(TextContent{str: "date".to_string(), quoted: false}),
+                Token::Colon,
+            ],
+            tokenize("date:  ").unwrap(),
+        );
+    }
+
+    #[test]
+    fn test_tokenize_value_missmatched_quotes() {
+        assert_eq!(Err(ParsingError::missmatched_quotes(2)), tokenize(r#": "abc"#));
+        assert_eq!(Err(ParsingError::missmatched_quotes(1)), tokenize(r#":"a""b""#));
     }
 }
