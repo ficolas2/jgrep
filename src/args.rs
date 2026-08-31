@@ -9,6 +9,11 @@ use crate::PrinterType;
         .args(&["printer", "only", "json", "path_printer"])
         .multiple(false)
 ))]
+#[command(group(
+    clap::ArgGroup::new("case_group")
+        .args(&["ignore_case", "case_sensitive"])
+        .multiple(false)
+))]
 pub struct Args {
     pub pattern: String,
     pub path: Option<String>,
@@ -37,6 +42,14 @@ pub struct Args {
     /// Show a pruned JSON tree leading to the match
     #[clap(short, long)]
     pub json: bool,
+
+    /// Ignore case when matching. Default is smart-case.
+    #[clap(short = 'i', long = "ignore-case")]
+    pub ignore_case: bool,
+
+    /// Make matching case-sensitive. Default is smart-case.
+    #[clap(short = 'I', long = "case-sensitive")]
+    pub case_sensitive: bool,
 
 }
 
