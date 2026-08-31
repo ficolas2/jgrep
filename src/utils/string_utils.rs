@@ -15,6 +15,15 @@ pub fn wildcard_match_internal(mut haystack: Chars, mut needle: Peekable<Chars>)
                 needle.next();
                 haystack.next();
             }
+            // A backslash makes the next character literal, so that `*`, `?` and `\` itself can be
+            // matched. A trailing one has nothing to escape, and stands for itself.
+            Some('\\') => {
+                needle.next();
+                let escaped = needle.next().unwrap_or('\\');
+                if Some(escaped) != haystack.next() {
+                    return false;
+                }
+            }
             Some(c) => {
                 if Some(*c) == haystack.next() {
                     needle.next();
@@ -62,6 +71,16 @@ mod test {
         assert!(!wildcard_match("abc", "b*")); // Wildcard end
         assert!(!wildcard_match("abc", "*b")); // Wildcard start
         assert!(!wildcard_match("abc", "*d*")); // Multiple wildcards
+
+        // \
+        assert!(wildcard_match("a*c", r"a\*c")); // Literal *
+        assert!(!wildcard_match("abc", r"a\*c")); // Literal * does not match another char
+        assert!(wildcard_match("a?c", r"a\?c")); // Literal ?
+        assert!(!wildcard_match("abc", r"a\?c")); // Literal ? does not match another char
+        assert!(wildcard_match(r"a\c", r"a\\c")); // Literal backslash
+        assert!(wildcard_match("a\"c", r#"a\"c"#)); // Literal quote
+        assert!(wildcard_match(r"a\", r"a\")); // Trailing backslash stands for itself
+        assert!(wildcard_match("a*c", r"*\**")); // Escaped and unescaped in one needle
 
         // ?
         assert!(wildcard_match("abc", "a?c")); // Single wildcard
