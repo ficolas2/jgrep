@@ -8,7 +8,7 @@ pub fn print<W: Write>(value: Value, matches: Vec<Vec<MatchNode>>, context: usiz
     for path in matches {
         let mut value_to_print = &value;
         let mut path = path.clone();
-        path.truncate(path.len() - min(path.len() - 1, context));
+        path.truncate(path.len() - min(path.len().saturating_sub(1), context));
 
         for node in path {
             match node {
@@ -62,5 +62,16 @@ mod test {
         let output = String::from_utf8(output).unwrap();
 
         assert_eq!(output, ".a[0].c: 0\n.a[3][0]: {\"patatas\":\"felices\"}\n")
+    }
+
+    // A pattern with no path at all, `jgrep ''`, matches the root, whose path is empty
+    #[test]
+    fn test_path_printer_root() {
+        let value = serde_json::json!({ "a": 0 });
+
+        let mut output = Vec::new();
+        super::print(value, vec![vec![]], 1, &mut output);
+
+        assert_eq!(String::from_utf8(output).unwrap(), ": {\"a\":0}\n")
     }
 }

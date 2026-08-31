@@ -9,7 +9,7 @@ pub fn print<W: Write>(value: Value, matches: Vec<Vec<MatchNode>>, context: usiz
     for path in matches {
         let mut value_to_print = &value;
         let mut path = path.clone();
-        path.truncate(path.len() - min(path.len() - 1, context));
+        path.truncate(path.len() - min(path.len().saturating_sub(1), context));
 
         for node in path {
             match node {
